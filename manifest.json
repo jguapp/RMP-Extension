@@ -1,0 +1,62 @@
+{
+  "manifest_version": 3,
+  "name": "RMP for CUNYfirst Schedule Builder",
+  "version": "1.0.0",
+  "description": "Shows Rate My Professors ratings, profile links and a hover preview of the score breakdown directly inside CUNYfirst Schedule Builder.",
+  "minimum_chrome_version": "102",
+
+  "permissions": ["storage"],
+
+  "host_permissions": [
+    "https://www.ratemyprofessors.com/*",
+    "https://*.cunyfirst.cuny.edu/*",
+    "https://globalsearch.cuny.edu/*",
+    "https://*.collegescheduler.com/*"
+  ],
+
+  "background": {
+    "service_worker": "src/background/service-worker.js"
+  },
+
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.cunyfirst.cuny.edu/*",
+        "https://globalsearch.cuny.edu/*",
+        "https://*.collegescheduler.com/*"
+      ],
+      "js": [
+        "src/lib/namespace.js",
+        "src/lib/name-utils.js",
+        "src/lib/matching.js",
+        "src/lib/schools.js",
+        "src/lib/subjects.js",
+        "src/content/scanner.js",
+        "src/content/badge.js",
+        "src/content/hovercard.js",
+        "src/content/content.js"
+      ],
+      "css": ["src/content/styles.css"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+
+  "action": {
+    "default_title": "RMP for CUNYfirst",
+    "default_popup": "src/popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}

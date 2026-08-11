@@ -1,0 +1,372 @@
+/*
+ * Styles for injected UI.
+ *
+ * These rules land inside CUNYfirst pages that carry a lot of aggressive
+ * global CSS, so every selector is namespaced under .rmpx-* and the properties
+ * that matter for legibility are stated explicitly rather than inherited.
+ */
+
+:root {
+  --rmpx-great: #15803d;
+  --rmpx-great-bg: #dcfce7;
+  --rmpx-ok: #a16207;
+  --rmpx-ok-bg: #fef3c7;
+  --rmpx-poor: #b91c1c;
+  --rmpx-poor-bg: #fee2e2;
+  --rmpx-unknown: #4b5563;
+  --rmpx-unknown-bg: #e5e7eb;
+  --rmpx-surface: #ffffff;
+  --rmpx-text: #111827;
+  --rmpx-muted: #6b7280;
+  --rmpx-border: #d1d5db;
+}
+
+/* --------------------------------------------------------------------------
+ * The professor name link
+ * -------------------------------------------------------------------------- */
+
+a.rmpx-name[data-rmpx] {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dotted currentColor;
+  cursor: pointer;
+}
+
+a.rmpx-name[data-rmpx][data-rmpx-state='loading'] {
+  border-bottom-style: none;
+  cursor: default;
+}
+
+a.rmpx-name[data-rmpx]:hover,
+a.rmpx-name[data-rmpx]:focus-visible {
+  border-bottom-style: solid;
+  text-decoration: none;
+}
+
+a.rmpx-name[data-rmpx]:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+ * The inline rating badge
+ * -------------------------------------------------------------------------- */
+
+.rmpx-badge[data-rmpx] {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.45;
+  white-space: nowrap;
+  vertical-align: baseline;
+  text-decoration: none;
+  background: var(--rmpx-unknown-bg);
+  color: var(--rmpx-unknown);
+}
+
+.rmpx-badge[data-rmpx][data-rmpx-tone='great'] {
+  background: var(--rmpx-great-bg);
+  color: var(--rmpx-great);
+  border-color: rgba(21, 128, 61, 0.25);
+}
+
+.rmpx-badge[data-rmpx][data-rmpx-tone='ok'] {
+  background: var(--rmpx-ok-bg);
+  color: var(--rmpx-ok);
+  border-color: rgba(161, 98, 7, 0.25);
+}
+
+.rmpx-badge[data-rmpx][data-rmpx-tone='poor'] {
+  background: var(--rmpx-poor-bg);
+  color: var(--rmpx-poor);
+  border-color: rgba(185, 28, 28, 0.25);
+}
+
+.rmpx-badge[data-rmpx][data-rmpx-state='nomatch'],
+.rmpx-badge[data-rmpx][data-rmpx-state='error'] {
+  background: transparent;
+  color: var(--rmpx-muted);
+  border-color: var(--rmpx-border);
+  font-weight: 500;
+}
+
+.rmpx-badge__count[data-rmpx]::before {
+  content: '·';
+  margin-right: 3px;
+  opacity: 0.55;
+}
+
+.rmpx-badge__count[data-rmpx] {
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.rmpx-badge[data-rmpx][data-rmpx-ambiguous]::after {
+  content: '?';
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.rmpx-badge__spinner[data-rmpx] {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  border-right-color: transparent;
+  animation: rmpx-spin 0.7s linear infinite;
+  opacity: 0.6;
+}
+
+@keyframes rmpx-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rmpx-badge__spinner[data-rmpx] { animation-duration: 2.4s; }
+}
+
+/* --------------------------------------------------------------------------
+ * The hover preview card
+ * -------------------------------------------------------------------------- */
+
+.rmpx-card[data-rmpx] {
+  position: fixed;
+  z-index: 2147483600;
+  box-sizing: border-box;
+  padding: 12px 14px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--rmpx-border);
+  background: var(--rmpx-surface);
+  color: var(--rmpx-text);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18), 0 2px 6px rgba(15, 23, 42, 0.08);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.rmpx-card[data-rmpx][hidden] { display: none; }
+
+.rmpx-card[data-rmpx] * { box-sizing: border-box; }
+
+.rmpx-card__header[data-rmpx] {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--rmpx-border);
+}
+
+.rmpx-card__name[data-rmpx] {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--rmpx-text);
+}
+
+.rmpx-card__meta[data-rmpx] {
+  margin-top: 1px;
+  font-size: 11px;
+  color: var(--rmpx-muted);
+}
+
+.rmpx-card__score[data-rmpx] {
+  display: flex;
+  align-items: baseline;
+  gap: 1px;
+  font-weight: 800;
+  color: var(--rmpx-unknown);
+}
+
+.rmpx-card__score[data-rmpx][data-rmpx-tone='great'] { color: var(--rmpx-great); }
+.rmpx-card__score[data-rmpx][data-rmpx-tone='ok'] { color: var(--rmpx-ok); }
+.rmpx-card__score[data-rmpx][data-rmpx-tone='poor'] { color: var(--rmpx-poor); }
+
+.rmpx-card__score-value[data-rmpx] { font-size: 24px; line-height: 1; }
+.rmpx-card__score-max[data-rmpx] { font-size: 11px; opacity: 0.6; font-weight: 600; }
+
+.rmpx-card__body[data-rmpx] { padding-top: 9px; }
+
+.rmpx-card__stats[data-rmpx] {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.rmpx-card__stat-value[data-rmpx] {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--rmpx-text);
+}
+
+.rmpx-card__stat-label[data-rmpx] {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--rmpx-muted);
+}
+
+/* Three-bucket summary bar */
+
+.rmpx-card__sentiment[data-rmpx] {
+  display: flex;
+  height: 8px;
+  width: 100%;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--rmpx-unknown-bg);
+}
+
+.rmpx-card__sentiment-slice[data-rmpx] { height: 100%; }
+.rmpx-card__sentiment-slice[data-rmpx][data-rmpx-bucket='awesome'] { background: var(--rmpx-great); }
+.rmpx-card__sentiment-slice[data-rmpx][data-rmpx-bucket='good'] { background: #eab308; }
+.rmpx-card__sentiment-slice[data-rmpx][data-rmpx-bucket='bad'] { background: var(--rmpx-poor); }
+
+.rmpx-card__legend[data-rmpx] {
+  display: flex;
+  gap: 12px;
+  margin: 7px 0 11px;
+  font-size: 11px;
+  color: var(--rmpx-muted);
+}
+
+.rmpx-card__legend-item[data-rmpx] { display: inline-flex; align-items: center; gap: 4px; }
+
+.rmpx-card__legend-dot[data-rmpx] {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.rmpx-card__legend-dot[data-rmpx][data-rmpx-bucket='awesome'] { background: var(--rmpx-great); }
+.rmpx-card__legend-dot[data-rmpx][data-rmpx-bucket='good'] { background: #eab308; }
+.rmpx-card__legend-dot[data-rmpx][data-rmpx-bucket='bad'] { background: var(--rmpx-poor); }
+
+/* 5-to-1 histogram */
+
+.rmpx-card__hist-row[data-rmpx] {
+  display: grid;
+  grid-template-columns: 58px 1fr 24px;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.rmpx-card__hist-label[data-rmpx] { font-size: 11px; color: var(--rmpx-muted); }
+
+.rmpx-card__hist-track[data-rmpx] {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--rmpx-unknown-bg);
+  overflow: hidden;
+}
+
+.rmpx-card__hist-fill[data-rmpx] {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--rmpx-unknown);
+  min-width: 0;
+}
+
+.rmpx-card__hist-fill[data-rmpx][data-rmpx-star='5'] { background: var(--rmpx-great); }
+.rmpx-card__hist-fill[data-rmpx][data-rmpx-star='4'] { background: #65a30d; }
+.rmpx-card__hist-fill[data-rmpx][data-rmpx-star='3'] { background: #eab308; }
+.rmpx-card__hist-fill[data-rmpx][data-rmpx-star='2'] { background: #f97316; }
+.rmpx-card__hist-fill[data-rmpx][data-rmpx-star='1'] { background: var(--rmpx-poor); }
+
+.rmpx-card__hist-count[data-rmpx] {
+  font-size: 11px;
+  color: var(--rmpx-muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tags, messages, footer */
+
+.rmpx-card__tags[data-rmpx] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.rmpx-card__tag[data-rmpx] {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  border: 1px solid var(--rmpx-border);
+  font-size: 10px;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.rmpx-card__message[data-rmpx],
+.rmpx-card__loading[data-rmpx] {
+  color: var(--rmpx-muted);
+  padding: 4px 0 6px;
+}
+
+.rmpx-card__warning[data-rmpx] {
+  margin-bottom: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: var(--rmpx-ok-bg);
+  color: var(--rmpx-ok);
+  font-size: 11px;
+}
+
+.rmpx-card__footer[data-rmpx] {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--rmpx-border);
+}
+
+.rmpx-card__link[data-rmpx] {
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.rmpx-card__link[data-rmpx]:hover { text-decoration: underline; }
+
+/* --------------------------------------------------------------------------
+ * Dark mode
+ * -------------------------------------------------------------------------- */
+
+@media (prefers-color-scheme: dark) {
+  .rmpx-card[data-rmpx] {
+    --rmpx-surface: #1f2937;
+    --rmpx-text: #f3f4f6;
+    --rmpx-muted: #9ca3af;
+    --rmpx-border: #374151;
+    --rmpx-unknown-bg: #374151;
+    --rmpx-great: #4ade80;
+    --rmpx-ok: #fbbf24;
+    --rmpx-poor: #f87171;
+  }
+
+  .rmpx-card__tag[data-rmpx] {
+    background: #374151;
+    color: #e5e7eb;
+  }
+
+  .rmpx-card__warning[data-rmpx] {
+    background: rgba(251, 191, 36, 0.15);
+    color: #fbbf24;
+  }
+
+  .rmpx-card__link[data-rmpx] { color: #93c5fd; }
+}
