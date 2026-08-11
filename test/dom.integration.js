@@ -110,6 +110,28 @@ const FAKE_DB = {
     confidence: 'high', ambiguous: false,
     url: 'https://www.ratemyprofessors.com/professor/666',
   },
+  'miriam|hansman': {
+    status: 'match',
+    professor: {
+      id: 'node-8', legacyId: '888', firstName: 'Miriam', lastName: 'Hansman',
+      department: 'Computer Information Systems', numRatings: 23, avgRating: 4.1,
+      avgDifficulty: 3.0, wouldTakeAgainPercent: 81,
+      school: { id: 's1', name: 'Baruch College' },
+    },
+    confidence: 'high', ambiguous: false,
+    url: 'https://www.ratemyprofessors.com/professor/888',
+  },
+  'david|mcnutt': {
+    status: 'match',
+    professor: {
+      id: 'node-9', legacyId: '999', firstName: 'David', lastName: 'McNutt',
+      department: 'Management', numRatings: 15, avgRating: 3.6,
+      avgDifficulty: 3.3, wouldTakeAgainPercent: 66,
+      school: { id: 's1', name: 'Baruch College' },
+    },
+    confidence: 'high', ambiguous: false,
+    url: 'https://www.ratemyprofessors.com/professor/999',
+  },
   'robert|alvarez': {
     status: 'match',
     professor: {
@@ -243,6 +265,11 @@ async function main() {
         });
       })(),
       staffTouched: document.querySelectorAll('#results-grid tbody tr:nth-child(3) a.rmpx-name').length,
+      // Any annotated text inside the detail cards that is not an instructor.
+      cardNoise: Array.from(document.querySelectorAll('.class-details a.rmpx-name'))
+        .filter(function (a) {
+          return ['Miriam Hansman', 'David McNutt'].indexOf(a.textContent.trim()) === -1;
+        }).length,
       schoolDetected: (window.__rmpxCalls.find(function (c) { return c.type === 'rmpx:lookup'; }) || {}).payload,
       subjectHints: window.__rmpxCalls
         .filter(function (c) { return c.type === 'rmpx:lookup'; })
@@ -257,14 +284,30 @@ async function main() {
   check('finds every real instructor and skips Staff', function () {
     const names = summary.anchors.map(function (a) { return a.text; }).sort();
     assert.deepStrictEqual(names, [
+      'David McNutt',
       'Doe,Jane',
       'Dr. Robert Alvarez, Ph.D.',
       'Garcia,Maria',
+      'Miriam Hansman',
       'Nakamura,Kenji',
       'Okonkwo, Adaeze',
       'Roe,Rick',
       'Smith,John A',
     ]);
+  });
+
+  check('finds a name beside an icon whose tooltip is the only marker', function () {
+    const hansman = summary.anchors.find(function (a) { return a.text === 'Miriam Hansman'; });
+    assert.ok(hansman, 'Schedule Builder card instructor was not found');
+    assert.strictEqual(hansman.href, 'https://www.ratemyprofessors.com/professor/888');
+    assert.strictEqual(hansman.badgeText, '4.123');
+  });
+
+  check('does not mistake card labels for professors', function () {
+    // "Baruch College", "Online Synchronous", "Online Courses" and
+    // "4.0/4.0 Progress Units" all sit in the same card as the instructor.
+    assert.strictEqual(summary.cardNoise, 0,
+      'annotated ' + summary.cardNoise + ' non-name phrases in the details card');
   });
 
   check('does not annotate the Staff row', function () {

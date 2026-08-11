@@ -40,6 +40,40 @@
     'mac', 'abu', 'ben',
   ]);
 
+  /**
+   * Words that never appear in a person's name but do appear in the Title Case
+   * phrases sitting right beside instructor names on Schedule Builder cards:
+   * "Baruch College", "Online Synchronous", "Regular Academic Session".
+   *
+   * Deliberately conservative -- anything that is also a plausible surname
+   * (Hall, Church, Camp, Park, Field, Long, Young) is left out.
+   */
+  const NON_NAME_WORDS = new Set([
+    'college', 'university', 'campus', 'school', 'academy', 'institute',
+    'online', 'synchronous', 'asynchronous', 'hybrid', 'inperson', 'remote',
+    'course', 'courses', 'class', 'classes', 'section', 'sections',
+    'lecture', 'laboratory', 'seminar', 'recitation', 'workshop',
+    'term', 'semester', 'session', 'academic', 'regular', 'summer', 'winter',
+    'fall', 'spring', 'enrolled', 'waitlist', 'waitlisted', 'seats', 'closed',
+    'credits', 'credit', 'units', 'progress', 'prerequisite', 'prerequisites',
+    'department', 'division', 'schedule', 'results', 'registrar', 'tuition',
+    'undergraduate', 'graduate', 'honors', 'attributes', 'requirements',
+    'details', 'status', 'meets', 'meeting', 'dates', 'instruction', 'mode',
+    'topic', 'component', 'career', 'availability', 'consent', 'grading',
+    'vertical', 'building', 'library', 'center', 'centre', 'auditorium',
+  ]);
+
+  /** True when any word in the phrase disqualifies it from being a name. */
+  function hasNonNameWord(value) {
+    if (!value) return false;
+    return String(value)
+      .split(/[\s,.\-–—/()]+/)
+      .some(function (token) {
+        const normalized = normalizeToken(token);
+        return normalized.length > 0 && NON_NAME_WORDS.has(normalized);
+      });
+  }
+
   /** Values that mean "no instructor assigned yet". */
   const PLACEHOLDERS = new Set([
     'staff', 'staff staff', 'tba', 'tbd', 'tba tba', 'na', 'none', 'nobody',
@@ -256,6 +290,8 @@
     if (!text) return null;
     text = stripCredentialClauses(text);
     if (!text || isPlaceholderName(text)) return null;
+    // "Baruch College" parses cleanly as a name; it just is not one.
+    if (hasNonNameWord(text)) return null;
 
     let first = '';
     let middle = '';
@@ -413,6 +449,7 @@
       return false;
     }
     if (isPlaceholderName(text)) return false;
+    if (hasNonNameWord(text)) return false;
     const letters = text.replace(/[^A-Za-z]/g, '');
     if (letters.length < 4) return false;
     // Needs at least two word-ish parts (given + surname, comma form counts).
@@ -424,6 +461,7 @@
     surnameTokens: surnameTokens,
     isNicknameEquivalent: isNicknameEquivalent,
     isPlaceholderName: isPlaceholderName,
+    hasNonNameWord: hasNonNameWord,
     titleCase: titleCase,
     parseName: parseName,
     parseInstructorField: parseInstructorField,

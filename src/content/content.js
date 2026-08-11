@@ -155,13 +155,39 @@
    * Scanning
    * ----------------------------------------------------------------------- */
 
+  /**
+   * Leave exactly one breadcrumb per page when we are running but found
+   * nobody. Without it, "extension not injected" and "markup not recognised"
+   * look identical from the outside -- both are just a page with no badges.
+   */
+  let announcedEmpty = false;
+
+  function announceEmptyScan() {
+    if (announcedEmpty) return;
+    announcedEmpty = true;
+    const counts = scanner.report();
+    console.info(
+      '[RMP for CUNYfirst] active on this page but found no instructor names. ' +
+      'Strategy hits — marked element: ' + counts.explicit +
+      ', beside marker: ' + counts.sibling +
+      ', table column: ' + counts.table +
+      ', label: ' + counts.label + '. ' +
+      'If names are visible on screen, this page uses markup the scanner does ' +
+      'not recognise yet; please report it with the surrounding HTML.'
+    );
+  }
+
   function scanAndAnnotate(scope) {
     if (scanning || !settings.enabled) return;
     scanning = true;
 
     try {
       const sites = scanner.scan(scope || document.body).slice(0, MAX_SITES_PER_PASS);
-      if (!sites.length) return;
+      if (!sites.length) {
+        announceEmptyScan();
+        return;
+      }
+      announcedEmpty = true;
 
       const entries = [];
       sites.forEach(function (site) {

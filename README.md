@@ -146,6 +146,39 @@ Every file is a classic script that hangs its exports off a single `RMPX`
 global, which is what lets the same source run as a content script, inside the
 service worker, and under `node --test` with no build step.
 
+## Troubleshooting
+
+**No badges appear anywhere.** Open the page, press F12, and look in the
+Console for a line starting `[RMP for CUNYfirst]`.
+
+- *The line is there* — the extension is injected and running, but this page
+  presents instructors in markup the scanner does not recognise yet. The line
+  reports which strategies fired and how many hits each got. Grab the
+  surrounding HTML with the snippet below and open an issue.
+- *The line is not there, and there are no badges* — the content script is not
+  being injected at all, meaning the page's URL is not covered by
+  `content_scripts.matches` in `manifest.json`. Compare the host in the address
+  bar against the supported list above.
+
+To confirm injection directly: switch the Console's context dropdown (it reads
+`top` by default) to **RMP for CUNYfirst** and type `RMPX`. An object means
+injected, `undefined` means not.
+
+To dump the markup around an instructor, run this in the Console with a real
+surname from the page substituted in:
+
+```js
+[...document.querySelectorAll('*')]
+  .filter(e => !e.children.length && /Hansman/.test(e.textContent))
+  .map(e => e.parentElement.parentElement.outerHTML)
+  .join('\n\n---\n\n')
+```
+
+**Badges all read `n/a`.** Names are being found but nothing is matching on
+RMP. Open the service worker console (`chrome://extensions` → this extension →
+*service worker*) and look for GraphQL errors; that usually means the
+unofficial API changed shape and `src/lib/rmp-client.js` needs updating.
+
 ## Known limitations
 
 - **The Rate My Professors API is unofficial and undocumented.** It can change

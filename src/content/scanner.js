@@ -3,15 +3,20 @@
  *
  * CUNY runs at least two very different UIs -- the College Scheduler based
  * "Schedule Builder" and the PeopleSoft class search -- and each campus skins
- * them differently. Rather than pin selectors to one build, the scanner tries
- * progressively looser strategies and stops at the first that finds something:
+ * them differently. Rather than pin selectors to one build, the scanner runs
+ * four independent strategies and unions whatever they find:
  *
- *   1. explicit instructor markup (class / id / aria / data attributes)
- *   2. the column under an "Instructor" table header
- *   3. text next to an "Instructor:" label
+ *   1. the marked element holds the name       <span class="instructor">Ann Lee</span>
+ *   2. the marker is an icon, name is beside it <i title="Instructor(s)"></i><span>Ann Lee</span>
+ *   3. the column under an "Instructor" header  (PeopleSoft / result grids)
+ *   4. text following an "Instructor:" label
  *
- * Everything it returns is a Text node, which is what lets the annotator wrap
- * a name in a link without rebuilding markup the host app owns.
+ * Strategy 2 matters because Schedule Builder renders class details as icon +
+ * text rows, where the only thing carrying the word "Instructor" is a tooltip
+ * on the icon -- the name itself is an unmarked sibling.
+ *
+ * Everything returned is a Text node, which is what lets the annotator wrap a
+ * name in a link without rebuilding markup the host app owns.
  */
 (function (root) {
   'use strict';
@@ -23,14 +28,23 @@
   const PROCESSED_ATTR = 'data-rmpx-scanned';
   const INSTRUCTOR_WORD = /\b(?:instructor|professor|faculty|taught\s*by|teacher)s?\b/i;
 
-  /** Attribute-based hooks seen across Schedule Builder / PeopleSoft builds. */
-  const EXPLICIT_SELECTORS = [
+  /**
+   * Anything whose attributes name an instructor. `title` is here because
+   * College Scheduler puts the label in a tooltip on the row's icon.
+   */
+  const MARKER_SELECTORS = [
     '[class*="instructor" i]',
     '[id*="instructor" i]',
+    '[title*="instructor" i]',
+    '[aria-label*="instructor" i]',
     '[data-testid*="instructor" i]',
     '[data-label*="instructor" i]',
-    '[aria-label*="instructor" i]',
+    '[data-title*="instructor" i]',
+    '[data-tooltip*="instructor" i]',
+    '[data-original-title*="instructor" i]',
     '[class*="professor" i]',
+    '[title*="professor" i]',
+    '[aria-label*="taught by" i]',
     '[id*="MTG_INSTR"]',      // PeopleSoft class search meeting-instructor cells
     '[id*="DERIVED_CLS_DTL_SSR_INSTR_LONG"]',
   ];
@@ -39,6 +53,9 @@
     'SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'SELECT', 'OPTION',
     'TEXTAREA', 'INPUT', 'BUTTON', 'SVG', 'PATH', 'IFRAME', 'CANVAS',
   ]);
+
+  /** Populated on every scan so a failing page can explain itself. */
+  let lastReport = { explicit: 0, sibling: 0, table: 0, label: 0, accepted: 0 };
 
   function isOurs(node) {
     const element = node && node.nodeType === 1 ? node : node && node.parentElement;
@@ -52,10 +69,6 @@
     return false;
   }
 
-  /**
-   * Collect the Text nodes directly under `element` that could hold a name.
-   * Only direct text children are considered so we never swallow a whole card.
-   */
   function directTextNodes(element) {
     const out = [];
     if (!element || !element.childNodes) return out;
@@ -90,6 +103,20 @@
     return found;
   }
 
+  /** Collect name-shaped text nodes from inside an element. */
+  function harvest(element, source, hits, limit) {
+    if (!element || isSkippable(element) || isOurs(element)) return 0;
+    let added = 0;
+    leafTextHolders(element, limit || 8).forEach(function (holder) {
+      holder.textNodes.forEach(function (textNode) {
+        if (!nameUtils.looksLikePersonName(textNode.nodeValue)) return;
+        hits.push({ textNode: textNode, source: source });
+        added += 1;
+      });
+    });
+    return added;
+  }
+
   /** Course code from the nearest row/card, used as a department hint. */
   function subjectHintFor(element) {
     if (!subjects) return null;
@@ -107,33 +134,58 @@
     return null;
   }
 
+  function markedElements(scope) {
+    try {
+      return Array.prototype.slice.call(scope.querySelectorAll(MARKER_SELECTORS.join(',')));
+    } catch (err) {
+      return [];
+    }
+  }
+
   /* ----------------------------------------------------------------------- *
-   * Strategy 1 -- explicit instructor markup
+   * Strategies 1 and 2 -- instructor markup, name inside or beside it
    * ----------------------------------------------------------------------- */
 
-  function fromExplicitMarkup(scope) {
-    const hits = [];
-    let elements = [];
-    try {
-      elements = Array.prototype.slice.call(scope.querySelectorAll(EXPLICIT_SELECTORS.join(',')));
-    } catch (err) {
-      return hits;
-    }
+  function fromMarkers(scope, hits) {
+    let inside = 0;
+    let beside = 0;
 
-    elements.forEach(function (element) {
+    markedElements(scope).forEach(function (element) {
       if (isSkippable(element) || isOurs(element)) return;
-      // Containers that hold many instructors get descended into.
-      leafTextHolders(element, 12).forEach(function (holder) {
-        holder.textNodes.forEach(function (textNode) {
-          hits.push({ textNode: textNode, source: 'explicit' });
-        });
-      });
+
+      // 1. The marked element itself contains the name.
+      const found = harvest(element, 'marker', hits, 12);
+      if (found > 0) {
+        inside += found;
+        return;
+      }
+
+      // 2. The marker is an icon or a label with no name of its own, so the
+      //    name is a sibling, or shares the marker's immediate parent.
+      let fromSiblings = 0;
+      let sibling = element.nextElementSibling;
+      let steps = 0;
+      while (sibling && steps < 3) {
+        fromSiblings += harvest(sibling, 'marker-sibling', hits, 6);
+        sibling = sibling.nextElementSibling;
+        steps += 1;
+      }
+
+      // Fall back to the parent only when this marker's siblings gave nothing,
+      // and only one level up, so we never vacuum up an entire card.
+      if (fromSiblings === 0 && element.parentElement) {
+        fromSiblings += harvest(element.parentElement, 'marker-parent', hits, 6);
+      }
+      beside += fromSiblings;
     });
+
+    lastReport.explicit = inside;
+    lastReport.sibling = beside;
     return hits;
   }
 
   /* ----------------------------------------------------------------------- *
-   * Strategy 2 -- the column beneath an "Instructor" header
+   * Strategy 3 -- the column beneath an "Instructor" header
    * ----------------------------------------------------------------------- */
 
   function headerIndexes(table) {
@@ -150,11 +202,13 @@
     return indexes;
   }
 
-  function fromTableColumns(scope) {
-    const hits = [];
+  function fromTableColumns(scope, hits) {
+    let added = 0;
     let tables = [];
     try {
-      tables = Array.prototype.slice.call(scope.querySelectorAll('table, [role="table"], [role="grid"]'));
+      tables = Array.prototype.slice.call(
+        scope.querySelectorAll('table, [role="table"], [role="grid"]')
+      );
     } catch (err) {
       return hits;
     }
@@ -168,36 +222,32 @@
         indexes.forEach(function (index) {
           const cell = row.children && row.children[index];
           if (!cell || cell.tagName === 'TH') return;
-          if (isSkippable(cell) || isOurs(cell)) return;
-          leafTextHolders(cell, 8).forEach(function (holder) {
-            holder.textNodes.forEach(function (textNode) {
-              hits.push({ textNode: textNode, source: 'table' });
-            });
-          });
+          added += harvest(cell, 'table', hits, 8);
         });
       });
     });
+
+    lastReport.table = added;
     return hits;
   }
 
   /* ----------------------------------------------------------------------- *
-   * Strategy 3 -- "Instructor:" label followed by the name
+   * Strategy 4 -- "Instructor:" label followed by the name
    * ----------------------------------------------------------------------- */
 
-  function fromLabels(scope) {
-    const hits = [];
+  function fromLabels(scope, hits) {
+    let added = 0;
     let walker;
     try {
-      walker = scope.ownerDocument
-        ? scope.ownerDocument.createTreeWalker(scope, NodeFilter.SHOW_TEXT, null)
-        : document.createTreeWalker(scope, NodeFilter.SHOW_TEXT, null);
+      const doc = scope.ownerDocument || document;
+      walker = doc.createTreeWalker(scope, NodeFilter.SHOW_TEXT, null);
     } catch (err) {
       return hits;
     }
 
     let node;
     let guard = 0;
-    while ((node = walker.nextNode()) && guard < 6000) {
+    while ((node = walker.nextNode()) && guard < 8000) {
       guard += 1;
       const text = node.nodeValue || '';
       if (!INSTRUCTOR_WORD.test(text)) continue;
@@ -206,34 +256,26 @@
       const label = node.parentElement;
       if (!label || isOurs(label)) continue;
 
-      // The name usually sits in the next sibling element, or in the same
-      // element right after a colon.
+      // "Instructor: Ann Lee" all in one text node.
       const inline = text.split(/:/)[1];
       if (inline && nameUtils.looksLikePersonName(inline)) {
-        hits.push({ textNode: node, source: 'label-inline', offset: text.indexOf(':') + 1 });
+        hits.push({ textNode: node, source: 'label-inline' });
+        added += 1;
         continue;
       }
 
       let sibling = label.nextElementSibling;
       let steps = 0;
       while (sibling && steps < 3) {
-        if (!isSkippable(sibling) && !isOurs(sibling)) {
-          const holders = leafTextHolders(sibling, 6);
-          let matched = false;
-          holders.forEach(function (holder) {
-            holder.textNodes.forEach(function (textNode) {
-              if (nameUtils.looksLikePersonName(textNode.nodeValue)) {
-                hits.push({ textNode: textNode, source: 'label-sibling' });
-                matched = true;
-              }
-            });
-          });
-          if (matched) break;
-        }
+        const found = harvest(sibling, 'label-sibling', hits, 6);
+        added += found;
+        if (found > 0) break;
         sibling = sibling.nextElementSibling;
         steps += 1;
       }
     }
+
+    lastReport.label = added;
     return hits;
   }
 
@@ -244,17 +286,23 @@
   /**
    * Scan `scope` and return candidate instructor sites.
    *
-   * Each entry is { textNode, rawText, people, subjectHint } where `people`
-   * is the parsed instructor list. Sites whose text does not parse into at
-   * least one real person are dropped here, so callers can trust the output.
+   * Each entry is { textNode, rawText, people, subjectHint }. Sites whose text
+   * does not parse into at least one real person are dropped here, so callers
+   * can trust the output. All four strategies run and their results are
+   * unioned -- a page may present instructors more than one way.
    */
   function scan(scope) {
     const target = scope && scope.querySelectorAll ? scope : document.body;
     if (!target) return [];
 
-    let hits = fromExplicitMarkup(target);
-    if (hits.length === 0) hits = fromTableColumns(target);
-    if (hits.length === 0) hits = fromLabels(target);
+    lastReport = { explicit: 0, sibling: 0, table: 0, label: 0, accepted: 0 };
+
+    const hits = [];
+    fromMarkers(target, hits);
+    fromTableColumns(target, hits);
+    // The label walk is the most expensive strategy; only run it when the
+    // structural ones came up empty.
+    if (hits.length === 0) fromLabels(target, hits);
 
     const seen = new Set();
     const sites = [];
@@ -265,6 +313,7 @@
       if (seen.has(textNode)) return;
       seen.add(textNode);
 
+      if (isOurs(textNode)) return;
       if (textNode.parentElement.hasAttribute &&
           textNode.parentElement.hasAttribute(PROCESSED_ATTR)) {
         return;
@@ -286,12 +335,24 @@
       });
     });
 
+    lastReport.accepted = sites.length;
     return sites;
+  }
+
+  /**
+   * What the last scan saw, per strategy. Used to leave a breadcrumb in the
+   * console when the extension loads on a page but finds nobody, which is the
+   * difference between "not injected" and "markup not recognised".
+   */
+  function report() {
+    return Object.assign({}, lastReport);
   }
 
   RMPX.scanner = {
     PROCESSED_ATTR: PROCESSED_ATTR,
+    MARKER_SELECTORS: MARKER_SELECTORS,
     scan: scan,
+    report: report,
     subjectHintFor: subjectHintFor,
   };
 })(typeof self !== 'undefined' ? self : globalThis);

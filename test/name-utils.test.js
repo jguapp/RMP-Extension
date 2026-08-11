@@ -62,6 +62,38 @@ test('rejects a bare surname with no given name', function () {
   assert.strictEqual(parseName('Smith'), null);
 });
 
+test('rejects Title Case phrases that sit beside instructor names', function () {
+  // These all parse cleanly as "First Last"; they just are not people. Each
+  // appears in the same Schedule Builder card as the actual instructor.
+  [
+    'Baruch College',
+    'Online Synchronous',
+    'Online Courses',
+    'Regular Academic Session',
+    'Hunter College',
+    'Newman Vertical Campus',
+    'Class Details',
+    'Schedule Results',
+  ].forEach(function (phrase) {
+    assert.strictEqual(parseName(phrase), null, 'expected null for ' + JSON.stringify(phrase));
+    assert.ok(!looksLikePersonName(phrase), 'should not look like a name: ' + phrase);
+  });
+});
+
+test('the stopword guard does not eat real surnames', function () {
+  // Words that are also plausible surnames must stay allowed.
+  ['John Hall', 'Mary Church', 'Peter Camp', 'Ann Park', 'Sara Field', 'Amy Young']
+    .forEach(function (name) {
+      assert.ok(parseName(name), 'should still parse: ' + name);
+    });
+});
+
+test('accepts the plain "First Last" names Schedule Builder cards use', function () {
+  assert.strictEqual(parseName('Miriam Hansman').display, 'Miriam Hansman');
+  assert.strictEqual(parseName('David McNutt').display, 'David McNutt');
+  assert.strictEqual(parseName('David McNutt').last, 'McNutt');
+});
+
 test('flags initial-only given names and searches on the surname', function () {
   const parsed = parseName('Smith, J');
   assert.strictEqual(parsed.initialOnly, true);
