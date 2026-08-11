@@ -7,8 +7,6 @@ score breakdown on hover.
 
 ![Ratings and a hover preview inside Schedule Builder](docs/preview.png)
 
-<sub>Shown on the bundled test page that mirrors Schedule Builder's markup.</sub>
-
 ## What it does
 
 - **Inline rating badge** next to every instructor name, colour-coded green /
@@ -81,21 +79,15 @@ CUNYfirst page
 A few decisions worth knowing about:
 
 **The scanner does not rely on fixed selectors.** CUNY runs at least two very
-different UIs and each campus skins them differently, so it runs four
-strategies and unions the results: the name inside marked-up instructor markup;
-the name *beside* a marker, for Schedule Builder's icon rows where only a
-tooltip carries the word "Instructor"; the column under an `Instructor` table
-header; and text following an `Instructor:` label.
+different UIs and each campus skins them differently, so it tries three
+strategies in order: explicit instructor markup (`class`/`data-testid`/
+PeopleSoft ids), the column under an `Instructor` table header, and text
+following an `Instructor:` label.
 
 **Names are never rewritten.** The annotator splits the existing text node with
 `splitText()` and re-parents it inside an anchor, so the node the host app holds
 a reference to still exists. Nothing is injected with `innerHTML` — a test
 enforces that.
-
-**The badge stays glued to the name.** Name and badge share one inline wrapper.
-Schedule Builder lays its detail rows out with flexbox, and without the wrapper
-they are two separate flex items, which lets the badge wrap onto its own line
-underneath the name.
 
 **A wrong rating is worse than no rating.** RMP's search is fuzzy and a surname
 query routinely returns a dozen people, so every candidate is scored on surname,
@@ -111,22 +103,15 @@ Outbound requests are capped at 3 concurrent with a minimum gap between them.
 
 ## Settings
 
-<img src="docs/popup.png" alt="Extension settings popup" width="280">
+<img src="docs/popup.png" alt="Extension settings popup" width="320">
 
 Click the toolbar icon:
 
 - **Show ratings** — master switch.
 - **Hover preview** — turn the card off and keep just badges and links.
-- **This site** — shown when the current page is not covered by default; turns
-  the extension on for that one origin.
-- **Detect campus** — auto-detect, or pin a specific college below.
-- **Difficulty / Retake %** — extra stats on the hover card.
-- **Clear cache** — drop every cached rating.
-
-The interface uses CUNY's visual identity palette: CUNY Blue `#011D49`, CUNY
-Gold `#FFB71B`, and bright blue `#1F5CFF` for links. Rating colours stay
-semantic — green, gold and red for good, middling and poor — so the badge still
-reads at a glance.
+- **Campus** — auto-detect, or pin a specific college.
+- **Hover card details** — show or hide difficulty and would-take-again.
+- **Cache** — see how many professors are cached and clear them.
 
 ## Privacy
 

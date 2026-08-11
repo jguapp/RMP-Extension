@@ -125,29 +125,21 @@
     const parent = nameNode.parentNode;
     if (!parent) return null;
 
-    // Name and badge go inside one wrapper so they behave as a single inline
-    // box. Schedule Builder lays its detail rows out with flexbox, and without
-    // this the anchor and the badge are two separate flex items -- which lets
-    // the badge wrap onto its own line underneath the name.
-    const wrap = el('span', 'rmpx-inline', { role: 'inline' });
-
     const anchor = el('a', 'rmpx-name', { role: 'name', rel: 'noopener noreferrer', target: '_blank' });
     anchor.setAttribute('data-rmpx-person', person.key);
     // Until the lookup resolves there is nothing useful to open.
     anchor.setAttribute('data-rmpx-state', 'loading');
 
+    parent.insertBefore(anchor, nameNode);
+    anchor.appendChild(nameNode);
+
     const badge = el('span', 'rmpx-badge', { role: 'badge' });
     badge.setAttribute('data-rmpx-state', 'loading');
     badge.setAttribute('role', 'status');
+    if (anchor.nextSibling) parent.insertBefore(badge, anchor.nextSibling);
+    else parent.appendChild(badge);
 
-    parent.insertBefore(wrap, nameNode);
-    wrap.appendChild(anchor);
-    anchor.appendChild(nameNode);
-    // No whitespace between the two, so there is no line-break opportunity
-    // between the last letter of the name and the badge.
-    wrap.appendChild(badge);
-
-    return { anchor: anchor, badge: badge, wrap: wrap };
+    return { anchor: anchor, badge: badge };
   }
 
   /**
@@ -204,25 +196,18 @@
   /** Remove every node this extension added, restoring the original text. */
   function removeAll(scope) {
     const target = scope || document;
+    const anchors = target.querySelectorAll('a.rmpx-name[data-rmpx]');
+    anchors.forEach(function (anchor) {
+      const parent = anchor.parentNode;
+      if (!parent) return;
+      while (anchor.firstChild) parent.insertBefore(anchor.firstChild, anchor);
+      parent.removeChild(anchor);
+      if (parent.normalize) parent.normalize();
+    });
 
-    // Badges and cards are pure additions, so they can simply be deleted.
     target.querySelectorAll('[data-rmpx="badge"], [data-rmpx="card"]').forEach(function (node) {
       if (node.parentNode) node.parentNode.removeChild(node);
     });
-
-    // Anchors and wrappers hold the page's original text nodes, so they are
-    // unwrapped rather than removed. Innermost first.
-    ['a.rmpx-name[data-rmpx]', 'span.rmpx-inline[data-rmpx]'].forEach(function (selector) {
-      target.querySelectorAll(selector).forEach(function (node) {
-        const parent = node.parentNode;
-        if (!parent) return;
-        while (node.firstChild) parent.insertBefore(node.firstChild, node);
-        parent.removeChild(node);
-      });
-    });
-
-    // Re-join the text nodes we split, so the DOM matches its original shape.
-    if (target.normalize) target.normalize();
   }
 
   RMPX.badge = {

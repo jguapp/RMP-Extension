@@ -20,10 +20,12 @@
     manualSchoolKey: document.getElementById('manualSchoolKey'),
     showDifficulty: document.getElementById('showDifficulty'),
     showWouldTakeAgain: document.getElementById('showWouldTakeAgain'),
+    schoolLabel: document.getElementById('schoolLabel'),
     cacheStats: document.getElementById('cacheStats'),
     clearCache: document.getElementById('clearCache'),
     siteSection: document.getElementById('siteSection'),
     siteOrigin: document.getElementById('siteOrigin'),
+    siteNote: document.getElementById('siteNote'),
     siteToggle: document.getElementById('siteToggle'),
   };
 
@@ -65,9 +67,7 @@
     const auto = settings.schoolMode !== 'manual';
     elements.autoDetect.checked = auto;
     elements.manualSchoolKey.value = settings.manualSchoolKey || 'baruch';
-    elements.manualSchoolKey.title = auto
-      ? 'Used when the campus cannot be read from the page'
-      : 'Always use this campus';
+    elements.schoolLabel.textContent = auto ? 'Fall back to' : 'Always use';
 
     // Everything except the master switch is meaningless while disabled.
     const disabled = !settings.enabled;
@@ -90,13 +90,12 @@
     }
     const { fresh, expired } = response.stats;
     if (fresh === 0 && expired === 0) {
-      elements.cacheStats.textContent = 'Nothing cached';
+      elements.cacheStats.textContent = 'Nothing cached yet.';
       return;
     }
-    elements.cacheStats.textContent = fresh + ' cached';
-    elements.cacheStats.title =
+    elements.cacheStats.textContent =
       fresh + ' professor' + (fresh === 1 ? '' : 's') + ' cached' +
-      (expired > 0 ? ', ' + expired + ' expired' : '');
+      (expired > 0 ? ', ' + expired + ' expired' : '') + '.';
   }
 
   /* ----------------------------------------------------------------------- *
@@ -140,18 +139,19 @@
     elements.siteOrigin.setAttribute('data-state', status.enabled ? 'on' : 'off');
 
     if (status.builtIn) {
-      elements.siteOrigin.title = 'Supported out of the box';
+      elements.siteNote.textContent = 'Supported out of the box.';
       elements.siteToggle.hidden = true;
       return;
     }
 
     elements.siteToggle.hidden = false;
     if (status.enabled) {
-      elements.siteOrigin.title = 'Enabled by you — reload the page to see changes';
-      elements.siteToggle.textContent = 'Turn off here';
+      elements.siteNote.textContent = 'Enabled by you. Reload the page to see changes.';
+      elements.siteToggle.textContent = 'Turn off for this site';
     } else {
-      elements.siteOrigin.title = 'Not covered by default';
-      elements.siteToggle.textContent = 'Turn on here';
+      elements.siteNote.textContent =
+        'Not covered by default. Turn it on if this is your Schedule Builder.';
+      elements.siteToggle.textContent = 'Turn on for this site';
     }
   }
 

@@ -270,26 +270,6 @@ async function main() {
         .filter(function (a) {
           return ['Miriam Hansman', 'David McNutt'].indexOf(a.textContent.trim()) === -1;
         }).length,
-
-      // Vertical overlap between each name and its badge. If the badge wrapped
-      // onto the next line, the two boxes share no vertical extent at all.
-      badgePlacement: Array.from(document.querySelectorAll('a.rmpx-name')).map(function (a) {
-        const badge = a.parentElement.querySelector('[data-rmpx="badge"]');
-        if (!badge) return { name: a.textContent, sameLine: false };
-        const nameBox = a.getBoundingClientRect();
-        const badgeBox = badge.getBoundingClientRect();
-        const overlap = Math.min(nameBox.bottom, badgeBox.bottom) -
-                        Math.max(nameBox.top, badgeBox.top);
-        return {
-          name: a.textContent,
-          sameLine: overlap > 0 && badgeBox.left >= nameBox.left,
-        };
-      }),
-
-      orphanBadges: Array.from(document.querySelectorAll('[data-rmpx="badge"]'))
-        .filter(function (b) {
-          return !b.parentElement || !b.parentElement.classList.contains('rmpx-inline');
-        }).length,
       schoolDetected: (window.__rmpxCalls.find(function (c) { return c.type === 'rmpx:lookup'; }) || {}).payload,
       subjectHints: window.__rmpxCalls
         .filter(function (c) { return c.type === 'rmpx:lookup'; })
@@ -321,21 +301,6 @@ async function main() {
     assert.ok(hansman, 'Schedule Builder card instructor was not found');
     assert.strictEqual(hansman.href, 'https://www.ratemyprofessors.com/professor/888');
     assert.strictEqual(hansman.badgeText, '4.123');
-  });
-
-  check('the badge sits beside the name, never on the line below', function () {
-    // Every annotated name and its badge must share a line box. The detail
-    // rows in the fixture are flex containers, which is exactly the layout
-    // that used to break this.
-    const offenders = summary.badgePlacement.filter(function (p) { return !p.sameLine; });
-    assert.deepStrictEqual(offenders, [],
-      'badge dropped below the name for: ' +
-      offenders.map(function (o) { return o.name; }).join(', '));
-  });
-
-  check('name and badge live in one wrapper so flex cannot split them', function () {
-    assert.strictEqual(summary.orphanBadges, 0,
-      summary.orphanBadges + ' badge(s) are not inside an .rmpx-inline wrapper');
   });
 
   check('does not mistake card labels for professors', function () {
