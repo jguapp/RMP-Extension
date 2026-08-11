@@ -77,6 +77,38 @@ test('content scripts are listed in dependency order', function () {
   assert.ok(indexOf('hovercard.js') < indexOf('content.js'));
 });
 
+test('content script matches cover CUNY and College Scheduler broadly', function () {
+  const matches = manifest.content_scripts[0].matches;
+  // Schedule Builder's subdomain varies by campus; matching the whole cuny.edu
+  // tree is what keeps the extension from silently never injecting.
+  assert.ok(matches.includes('https://*.cuny.edu/*'), 'must cover all of cuny.edu');
+  assert.ok(matches.includes('https://*.collegescheduler.com/*'));
+});
+
+test('per-site opt-in is wired up', function () {
+  assert.ok(manifest.permissions.includes('scripting'),
+    'dynamic content script registration needs the scripting permission');
+  assert.ok(manifest.permissions.includes('activeTab'),
+    'reading the current tab origin needs activeTab');
+  assert.ok(Array.isArray(manifest.optional_host_permissions) &&
+    manifest.optional_host_permissions.length > 0,
+    'opting a new site in needs an optional host permission to request');
+});
+
+test('the shared content script list matches the manifest exactly', function () {
+  // The service worker registers this same list on opted-in sites. If the two
+  // drift, dynamically enabled sites silently load a different bundle.
+  require('../src/lib/namespace.js');
+  const RMPX = globalThis.RMPX;
+  assert.deepStrictEqual(RMPX.CONTENT_JS, manifest.content_scripts[0].js);
+  assert.deepStrictEqual(RMPX.CONTENT_CSS, manifest.content_scripts[0].css);
+});
+
+test('the manifest version matches the code version', function () {
+  require('../src/lib/namespace.js');
+  assert.strictEqual(globalThis.RMPX.VERSION, manifest.version);
+});
+
 test('the service worker imports every library it uses', function () {
   const source = fs.readFileSync(path.join(ROOT, manifest.background.service_worker), 'utf8');
   ['namespace.js', 'name-utils.js', 'matching.js', 'schools.js', 'cache.js', 'rmp-client.js']

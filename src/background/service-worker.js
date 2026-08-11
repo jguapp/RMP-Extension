@@ -178,6 +178,135 @@ importScripts(
   }
 
   /* ----------------------------------------------------------------------- *
+   * Opting extra sites in
+   *
+   * The manifest covers *.cuny.edu and *.collegescheduler.com, which is where
+   * Schedule Builder is expected to live. If a campus serves it from somewhere
+   * else, the user can grant this extension that single origin from the popup
+   * and we register the same content scripts there at runtime -- no reinstall,
+   * and no need to ship a broad always-on permission nobody asked for.
+   * ----------------------------------------------------------------------- */
+
+  /** Script ids are derived from the origin so registration is idempotent. */
+  function scriptIdFor(origin) {
+    return 'rmpx-site-' + String(origin).replace(/[^a-zA-Z0-9]/g, '-');
+  }
+
+  function originPattern(origin) {
+    return String(origin).replace(/\/+$/, '') + '/*';
+  }
+
+  /** Origins already covered by the manifest need no dynamic registration. */
+  function isStaticallyCovered(origin) {
+    return /^https:\/\/([a-z0-9-]+\.)*(cuny\.edu|collegescheduler\.com)$/i.test(
+      String(origin).replace(/\/+$/, '')
+    );
+  }
+
+  async function registerSite(origin) {
+    const script = {
+      id: scriptIdFor(origin),
+      matches: [originPattern(origin)],
+      js: RMPX.CONTENT_JS,
+      css: RMPX.CONTENT_CSS,
+      runAt: 'document_idle',
+      allFrames: true,
+      persistAcrossSessions: true,
+    };
+
+    try {
+      await chrome.scripting.registerContentScripts([script]);
+      return true;
+    } catch (err) {
+      // Already registered in a previous session -- update it in place.
+      try {
+        await chrome.scripting.updateContentScripts([script]);
+        return true;
+      } catch (innerErr) {
+        return false;
+      }
+    }
+  }
+
+  async function unregisterSite(origin) {
+    try {
+      await chrome.scripting.unregisterContentScripts({ ids: [scriptIdFor(origin)] });
+    } catch (err) {
+      // Nothing registered for this origin; nothing to undo.
+    }
+  }
+
+  function grantedOrigins() {
+    return new Promise(function (resolve) {
+      chrome.permissions.getAll(function (permissions) {
+        void chrome.runtime.lastError;
+        resolve((permissions && permissions.origins) || []);
+      });
+    });
+  }
+
+  async function siteStatus(payload) {
+    const origin = payload && payload.origin;
+    if (!origin) return { supported: false };
+
+    if (isStaticallyCovered(origin)) {
+      return { supported: true, origin: origin, enabled: true, builtIn: true };
+    }
+
+    const enabled = await new Promise(function (resolve) {
+      chrome.permissions.contains({ origins: [originPattern(origin)] }, function (result) {
+        void chrome.runtime.lastError;
+        resolve(Boolean(result));
+      });
+    });
+
+    return { supported: true, origin: origin, enabled: enabled, builtIn: false };
+  }
+
+  /**
+   * The permission prompt itself has to happen in the popup, where there is a
+   * user gesture. By the time this runs the grant already exists, so all that
+   * remains is wiring up the content scripts.
+   */
+  async function enableSite(payload) {
+    const origin = payload && payload.origin;
+    if (!origin || isStaticallyCovered(origin)) return { enabled: true };
+    return { enabled: await registerSite(origin) };
+  }
+
+  async function disableSite(payload) {
+    const origin = payload && payload.origin;
+    if (!origin || isStaticallyCovered(origin)) return { enabled: true };
+    await unregisterSite(origin);
+    await new Promise(function (resolve) {
+      chrome.permissions.remove({ origins: [originPattern(origin)] }, function () {
+        void chrome.runtime.lastError;
+        resolve();
+      });
+    });
+    return { enabled: false };
+  }
+
+  /** Re-attach content scripts for every origin the user already granted. */
+  async function syncRegistrations() {
+    const origins = await grantedOrigins();
+    for (let i = 0; i < origins.length; i += 1) {
+      const origin = String(origins[i]).replace(/\/\*$/, '');
+      if (!/^https?:\/\//i.test(origin)) continue;
+      if (isStaticallyCovered(origin)) continue;
+      await registerSite(origin);
+    }
+  }
+
+  if (chrome.permissions && chrome.permissions.onRemoved) {
+    chrome.permissions.onRemoved.addListener(function (permissions) {
+      ((permissions && permissions.origins) || []).forEach(function (pattern) {
+        unregisterSite(String(pattern).replace(/\/\*$/, ''));
+      });
+    });
+  }
+
+  /* ----------------------------------------------------------------------- *
    * Message plumbing
    * ----------------------------------------------------------------------- */
 
@@ -194,6 +323,9 @@ importScripts(
     [MSG.CACHE_STATS]: async function () {
       return { stats: await cache.stats() };
     },
+    [MSG.SITE_STATUS]: siteStatus,
+    [MSG.ENABLE_SITE]: enableSite,
+    [MSG.DISABLE_SITE]: disableSite,
     [MSG.CLEAR_CACHE]: async function () {
       const removed = await cache.clear();
       return { removed: removed };
@@ -219,11 +351,13 @@ importScripts(
   chrome.runtime.onInstalled.addListener(function () {
     getSettings().then(setSettings);
     cache.prune();
+    syncRegistrations();
   });
 
   if (chrome.runtime.onStartup) {
     chrome.runtime.onStartup.addListener(function () {
       cache.prune();
+      syncRegistrations();
     });
   }
 })(typeof self !== 'undefined' ? self : globalThis);

@@ -15,7 +15,26 @@
 
   const RMPX = (root.RMPX = root.RMPX || {});
 
-  RMPX.VERSION = '1.0.0';
+  RMPX.VERSION = '1.1.0';
+
+  /**
+   * The content script bundle, in load order. Kept here so the service worker
+   * can register the same set dynamically on sites the user opts into. A test
+   * asserts this stays identical to manifest.json.
+   */
+  RMPX.CONTENT_JS = [
+    'src/lib/namespace.js',
+    'src/lib/name-utils.js',
+    'src/lib/matching.js',
+    'src/lib/schools.js',
+    'src/lib/subjects.js',
+    'src/content/scanner.js',
+    'src/content/badge.js',
+    'src/content/hovercard.js',
+    'src/content/content.js',
+  ];
+
+  RMPX.CONTENT_CSS = ['src/content/styles.css'];
 
   /** Message types exchanged between content scripts, popup and worker. */
   RMPX.MSG = {
@@ -23,6 +42,9 @@
     DETAIL: 'rmpx:detail',
     GET_SETTINGS: 'rmpx:get-settings',
     SET_SETTINGS: 'rmpx:set-settings',
+    SITE_STATUS: 'rmpx:site-status',
+    ENABLE_SITE: 'rmpx:enable-site',
+    DISABLE_SITE: 'rmpx:disable-site',
     CACHE_STATS: 'rmpx:cache-stats',
     CLEAR_CACHE: 'rmpx:clear-cache',
   };

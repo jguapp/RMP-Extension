@@ -24,10 +24,20 @@ score breakdown on hover.
 
 | Site | URL |
 | --- | --- |
-| CUNYfirst Schedule Builder | `https://sb.cunyfirst.cuny.edu/*` |
-| CUNYfirst portal | `https://*.cunyfirst.cuny.edu/*` |
-| CUNY Global Class Search | `https://globalsearch.cuny.edu/*` |
+| Anything on CUNY | `https://*.cuny.edu/*` |
 | College Scheduler | `https://*.collegescheduler.com/*` |
+
+That covers CUNYfirst, Schedule Builder and Global Class Search wherever your
+campus serves them from — the Schedule Builder subdomain is not the same
+everywhere, and an extension that silently never injects is the worst failure
+mode there is. The scanner is conservative, so on CUNY pages with no class
+listings it simply finds nothing and does nothing.
+
+**If your Schedule Builder lives somewhere else entirely**, open the popup on
+that page and use **This site → Turn on for this site**. That asks Chrome for
+permission to that one origin and registers the content scripts there, no code
+change or reinstall needed. The same button turns it back off and revokes the
+permission.
 
 All 25 CUNY campuses are recognised. The campus is detected from the page
 (institution dropdown, page title, header branding, URL) and can be pinned
@@ -107,6 +117,9 @@ Click the toolbar icon:
 
 - The only host contacted is `ratemyprofessors.com`, and only to look up the
   names already displayed on the page you are viewing.
+- The broad `https://*/*` entry is an **optional** permission — Chrome does not
+  grant it at install time. It exists solely so the "Turn on for this site"
+  button has something to request, and each use grants exactly one origin.
 - No analytics, no telemetry, no third-party servers, no accounts.
 - Requests are sent with `credentials: 'omit'`, so no cookies go with them.
 - Everything cached (ratings, resolved school ids, your settings) stays in local
@@ -156,9 +169,8 @@ Console for a line starting `[RMP for CUNYfirst]`.
   reports which strategies fired and how many hits each got. Grab the
   surrounding HTML with the snippet below and open an issue.
 - *The line is not there, and there are no badges* — the content script is not
-  being injected at all, meaning the page's URL is not covered by
-  `content_scripts.matches` in `manifest.json`. Compare the host in the address
-  bar against the supported list above.
+  being injected at all, meaning the page's URL is not covered. Open the popup
+  and use **This site → Turn on for this site**, then reload the page.
 
 To confirm injection directly: switch the Console's context dropdown (it reads
 `top` by default) to **RMP for CUNYfirst** and type `RMPX`. An object means

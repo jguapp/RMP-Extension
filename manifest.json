@@ -1,18 +1,19 @@
 {
   "manifest_version": 3,
   "name": "RMP for CUNYfirst Schedule Builder",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Shows Rate My Professors ratings, profile links and a hover preview of the score breakdown directly inside CUNYfirst Schedule Builder.",
   "minimum_chrome_version": "102",
 
-  "permissions": ["storage"],
+  "permissions": ["storage", "scripting", "activeTab"],
 
   "host_permissions": [
     "https://www.ratemyprofessors.com/*",
-    "https://*.cunyfirst.cuny.edu/*",
-    "https://globalsearch.cuny.edu/*",
+    "https://*.cuny.edu/*",
     "https://*.collegescheduler.com/*"
   ],
+
+  "optional_host_permissions": ["https://*/*"],
 
   "background": {
     "service_worker": "src/background/service-worker.js"
@@ -21,8 +22,7 @@
   "content_scripts": [
     {
       "matches": [
-        "https://*.cunyfirst.cuny.edu/*",
-        "https://globalsearch.cuny.edu/*",
+        "https://*.cuny.edu/*",
         "https://*.collegescheduler.com/*"
       ],
       "js": [
