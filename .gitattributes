@@ -1,0 +1,8 @@
+# Normalise line endings so a clone on macOS or Linux does not show every file
+# as modified. Text is stored LF in the repo and checked out LF everywhere.
+* text=auto eol=lf
+
+# Binary: never touch these.
+*.png binary
+*.zip binary
+*.ico binary
