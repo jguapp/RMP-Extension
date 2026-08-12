@@ -5,20 +5,15 @@ judge a section without opening a second tab. Every instructor name becomes a
 link to their RMP profile, picks up an inline rating badge, and shows a full
 score breakdown on hover.
 
-![Ratings and a hover preview inside Schedule Builder](docs/preview.png)
-
 ## What it does
 
 - **Inline rating badge** next to every instructor name, colour-coded green /
-  amber / red, with the number of ratings behind it.
+  yellow / red, with the number of ratings behind it.
 - **The name becomes a link** straight to that professor's RMP profile. When
   nobody matches, it links to an RMP search for the name instead.
 - **Hover preview** showing the headline score, would-take-again percentage,
   average difficulty, the Awesome / Good / Bad split, the full 5-to-1
   histogram, and the professor's most common tags.
-- **Leaves the page alone otherwise.** `Staff`, `TBA` and other placeholders are
-  skipped, and the original text is never rewritten — turning the extension off
-  restores the page exactly.
 
 ## Supported pages
 
@@ -42,19 +37,6 @@ permission.
 All 25 CUNY campuses are recognised. The campus is detected from the page
 (institution dropdown, page title, header branding, URL) and can be pinned
 manually from the popup.
-
-## Install
-
-The extension is unpacked-only — it is not on the Chrome Web Store.
-
-1. Clone this repo.
-2. Open `chrome://extensions` (or `edge://extensions`).
-3. Turn on **Developer mode**.
-4. Click **Load unpacked** and pick the repo folder.
-5. Open Schedule Builder and search for classes.
-
-No build step. There is no bundler and no `npm install` required to run it —
-dependencies are only needed for the browser-based tests.
 
 ## How it works
 
@@ -100,18 +82,6 @@ ambiguous and the hover card says so explicitly.
 day, and identical in-flight requests are de-duplicated, so a results page with
 40 instructors makes at most 40 requests once and none on the next visit.
 Outbound requests are capped at 3 concurrent with a minimum gap between them.
-
-## Settings
-
-<img src="docs/popup.png" alt="Extension settings popup" width="320">
-
-Click the toolbar icon:
-
-- **Show ratings** — master switch.
-- **Hover preview** — turn the card off and keep just badges and links.
-- **Campus** — auto-detect, or pin a specific college.
-- **Hover card details** — show or hide difficulty and would-take-again.
-- **Cache** — see how many professors are cached and clear them.
 
 ## Privacy
 
