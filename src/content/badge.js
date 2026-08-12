@@ -93,6 +93,11 @@
     count.textContent = String(professor.numRatings);
     badge.appendChild(count);
 
+    // Spelled out, because a bare second number reads as another score.
+    const countLabel = el('span', 'rmpx-badge__count-label', { role: 'count-label' });
+    countLabel.textContent = professor.numRatings === 1 ? 'rating' : 'ratings';
+    badge.appendChild(countLabel);
+
     const summary = professor.firstName + ' ' + professor.lastName + ': ' +
       formatRating(professor.avgRating) + ' out of 5 from ' + professor.numRatings +
       ' rating' + (professor.numRatings === 1 ? '' : 's') +

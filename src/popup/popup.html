@@ -15,22 +15,15 @@
   </header>
 
   <main>
+    <!--
+      Two controls, and only two. Everything else runs on fixed defaults.
+      Campus is here because auto-detection has to guess on pages that never
+      name the college, and a wrong guess means ratings from the wrong school.
+    -->
     <section class="section">
-      <label class="row row--toggle" for="enabled">
-        <span class="row__label">
-          <span class="row__title">Show ratings</span>
-          <span class="row__hint">Annotate instructor names on CUNYfirst pages</span>
-        </span>
-        <input type="checkbox" id="enabled" class="switch">
-      </label>
-
-      <label class="row row--toggle" for="hoverCards">
-        <span class="row__label">
-          <span class="row__title">Hover preview</span>
-          <span class="row__hint">Score breakdown card on hover</span>
-        </span>
-        <input type="checkbox" id="hoverCards" class="switch">
-      </label>
+      <h2 class="section__title">Campus</h2>
+      <select id="campus" class="select" aria-label="Campus"></select>
+      <p class="note" id="campusNote">Read from the page.</p>
     </section>
 
     <section class="section" id="siteSection" hidden>
@@ -40,41 +33,12 @@
       <button type="button" id="siteToggle" class="button" hidden></button>
     </section>
 
-    <section class="section">
-      <h2 class="section__title">Campus</h2>
-      <label class="row row--toggle" for="autoDetect">
-        <span class="row__label">
-          <span class="row__title">Detect automatically</span>
-          <span class="row__hint">Read the college from the page</span>
-        </span>
-        <input type="checkbox" id="autoDetect" class="switch">
-      </label>
-
-      <label class="row row--stack" for="manualSchoolKey">
-        <span class="row__title" id="schoolLabel">Fall back to</span>
-        <select id="manualSchoolKey" class="select" aria-labelledby="schoolLabel"></select>
-      </label>
-      <p class="note">Used when detection fails, or always when automatic detection is off.</p>
-    </section>
-
-    <section class="section">
-      <h2 class="section__title">Hover card details</h2>
-      <label class="row row--toggle" for="showDifficulty">
-        <span class="row__title">Average difficulty</span>
-        <input type="checkbox" id="showDifficulty" class="switch">
-      </label>
-      <label class="row row--toggle" for="showWouldTakeAgain">
-        <span class="row__title">Would take again</span>
-        <input type="checkbox" id="showWouldTakeAgain" class="switch">
-      </label>
-    </section>
-
-    <section class="section">
-      <h2 class="section__title">Cache</h2>
-      <p class="note" id="cacheStats">Loading…</p>
-      <button type="button" id="clearCache" class="button">Clear cached ratings</button>
+    <section class="section" id="idleSection">
+      <p class="note">Open a Schedule Builder or CUNYfirst page and instructor
+        names will pick up their ratings automatically.</p>
     </section>
   </main>
+
 
   <footer class="footer">
     <p>Ratings come from Rate My Professors. This extension is not affiliated with

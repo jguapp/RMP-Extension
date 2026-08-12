@@ -112,6 +112,10 @@
   /**
    * Fetch-through helper with in-flight de-duplication: forty badges asking
    * for the same professor at once produce exactly one network request.
+   *
+   * `ttlMs` may be a function of the fetched value, which is how a miss gets a
+   * shorter lifetime than a hit -- whether a lookup missed is only known after
+   * the producer has run.
    */
   const inFlight = new Map();
 
@@ -126,7 +130,7 @@
         const value = await producer();
         // A thrown producer never reaches here, so transient network failures
         // are not cached as permanent misses.
-        await set(key, value, ttlMs);
+        await set(key, value, typeof ttlMs === 'function' ? ttlMs(value) : ttlMs);
         return value;
       } finally {
         inFlight.delete(key);
@@ -135,33 +139,6 @@
 
     inFlight.set(key, promise);
     return promise;
-  }
-
-  async function listKeys() {
-    const all = await storageGet(null);
-    return Object.keys(all).filter(function (k) { return k.startsWith(PREFIX); });
-  }
-
-  async function stats() {
-    const all = await storageGet(null);
-    const keys = Object.keys(all).filter(function (k) { return k.startsWith(PREFIX); });
-    let fresh = 0;
-    let expired = 0;
-    const current = now();
-    keys.forEach(function (k) {
-      const entry = all[k];
-      if (entry && typeof entry.expiresAt === 'number' && entry.expiresAt > current) fresh += 1;
-      else expired += 1;
-    });
-    return { total: keys.length, fresh: fresh, expired: expired };
-  }
-
-  async function clear() {
-    memory.clear();
-    inFlight.clear();
-    const keys = await listKeys();
-    if (keys.length) await storageRemove(keys);
-    return keys.length;
   }
 
   /** Drop expired entries, then trim the oldest if we are over budget. */
@@ -200,8 +177,6 @@
     get: get,
     set: set,
     getOrFetch: getOrFetch,
-    stats: stats,
-    clear: clear,
     prune: prune,
   };
 

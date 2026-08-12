@@ -4,7 +4,8 @@
  * Rate My Professors sets X-Frame-Options, so an actual iframe preview of the
  * profile is impossible. Instead we render a native card from the same data the
  * profile page uses: the headline score, difficulty, would-take-again, the
- * full 1-5 histogram, and a three-bucket Awesome / Good / Bad summary.
+ * full 1-5 histogram, a three-bucket Awesome / Good / Bad summary, and the
+ * tags students attached most often ("Tough grader", "Test heavy", ...).
  *
  * One card instance is reused for the whole page. It opens on hover and on
  * keyboard focus, and stays open while the pointer is inside it so the links
@@ -161,13 +162,20 @@
     container.appendChild(list);
   }
 
+  /**
+   * The tags students attached most often, most-mentioned first. Already
+   * ranked and capped by the client, so everything handed over is rendered.
+   */
   function renderTags(container, tags) {
     if (!tags || !tags.length) return;
     const wrap = el('div', 'rmpx-card__tags');
-    tags.slice(0, 5).forEach(function (tag) {
+    tags.forEach(function (tag) {
       const chip = el('span', 'rmpx-card__tag');
       chip.textContent = tag.name;
-      if (tag.count) chip.title = tag.name + ' — mentioned ' + tag.count + ' times';
+      if (tag.count) {
+        chip.title = tag.name + ' — mentioned in ' +
+          tag.count + (tag.count === 1 ? ' rating' : ' ratings');
+      }
       wrap.appendChild(chip);
     });
     container.appendChild(wrap);

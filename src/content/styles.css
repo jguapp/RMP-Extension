@@ -6,19 +6,59 @@
  * that matter for legibility are stated explicitly rather than inherited.
  */
 
+/*
+ * Colours come from CUNY's university identity palette:
+ * cuny.edu/about/administration/offices/communications-marketing/university-identity/colors/
+ *
+ * Rating tones stay semantic -- green reads as good and red as bad no matter
+ * whose brand it is -- but each one is drawn from CUNY's own accent range
+ * rather than a generic ramp. Where a tone is used for small text it takes the
+ * darker member of its family (Umber, not Taxi) so it stays legible.
+ */
 :root {
+  --rmpx-cuny-blue: #0033a1;    /* primary */
+  --rmpx-cuny-taxi: #ffb71b;    /* primary accent */
+  --rmpx-cuny-indigo: #011d49;  /* dark surfaces */
+  --rmpx-cuny-azure: #1f5cff;   /* links */
+  --rmpx-cuny-sky: #a3c9ff;     /* muted text on blue */
+  --rmpx-cuny-pearl: #f7f4eb;
+  --rmpx-cuny-dove: #d8d7d6;
+  --rmpx-cuny-charcoal: #383838;
+  --rmpx-cuny-slate: #688197;
+
+  /* Awesome keeps its original green rather than a CUNY accent -- it is the
+     one tone students read as "good" without thinking about it. */
   --rmpx-great: #15803d;
   --rmpx-great-bg: #dcfce7;
-  --rmpx-ok: #a16207;
-  --rmpx-ok-bg: #fef3c7;
-  --rmpx-poor: #b91c1c;
-  --rmpx-poor-bg: #fee2e2;
-  --rmpx-unknown: #4b5563;
-  --rmpx-unknown-bg: #e5e7eb;
+  --rmpx-great-fill: #15803d;
+  --rmpx-ok: #896b25;           /* Umber */
+  --rmpx-ok-bg: #fffcd5;        /* Cream */
+  --rmpx-ok-fill: #ffb71b;      /* Taxi */
+  --rmpx-poor: #bf0d3e;         /* Cranberry */
+  --rmpx-poor-bg: #ffdcee;      /* Blush */
+  --rmpx-poor-fill: #bf0d3e;
+  --rmpx-unknown: #383838;      /* Charcoal */
+  --rmpx-unknown-bg: #d8d7d6;   /* Dove */
+
+  /* Histogram ramp: green -> Liberty -> Taxi -> Coral -> Cranberry. */
+  --rmpx-star-5: #15803d;
+  --rmpx-star-4: #45c2b1;
+  --rmpx-star-3: #ffb71b;
+  --rmpx-star-2: #ff7370;
+  --rmpx-star-1: #bf0d3e;
+
   --rmpx-surface: #ffffff;
-  --rmpx-text: #111827;
-  --rmpx-muted: #6b7280;
-  --rmpx-border: #d1d5db;
+  --rmpx-text: #011d49;
+  --rmpx-muted: #688197;
+  --rmpx-border: #d8d7d6;
+
+  /* Tone equivalents that stay legible on the blue header. */
+  --rmpx-on-blue: #ffffff;
+  --rmpx-on-blue-muted: #a3c9ff;
+  --rmpx-on-blue-great: #b5ebd8;
+  --rmpx-on-blue-ok: #ffb71b;
+  --rmpx-on-blue-poor: #ffcbca;
+  --rmpx-on-blue-unknown: #d8d7d6;
 }
 
 /* --------------------------------------------------------------------------
@@ -44,7 +84,7 @@ a.rmpx-name[data-rmpx]:focus-visible {
 }
 
 a.rmpx-name[data-rmpx]:focus-visible {
-  outline: 2px solid #2563eb;
+  outline: 2px solid var(--rmpx-cuny-azure);
   outline-offset: 2px;
 }
 
@@ -97,15 +137,33 @@ a.rmpx-name[data-rmpx]:focus-visible {
   font-weight: 500;
 }
 
+/*
+ * The rating count reads at the same weight as the score rather than louder
+ * than it, but it is spelled out: "3.6 · 116" on its own looks like a second
+ * score to anyone who has not used this before.
+ */
 .rmpx-badge__count[data-rmpx]::before {
   content: '·';
-  margin-right: 3px;
-  opacity: 0.55;
+  margin-right: 4px;
+  opacity: 0.5;
+  font-weight: 500;
 }
 
+/*
+ * No tabular-nums here, deliberately. Fixed-width figures are for columns of
+ * numbers -- the histogram counts use them -- and they render about 22% wider
+ * than the proportional digits the score is drawn with, which is enough to
+ * make the count look like the larger number of the two.
+ */
 .rmpx-badge__count[data-rmpx] {
+  font-variant-numeric: normal;
+}
+
+.rmpx-badge__count-label[data-rmpx] {
+  margin-left: -2px;
+  font-size: 10px;
   font-weight: 500;
-  opacity: 0.8;
+  opacity: 0.75;
 }
 
 .rmpx-badge[data-rmpx][data-rmpx-ambiguous]::after {
@@ -141,9 +199,11 @@ a.rmpx-name[data-rmpx]:focus-visible {
   position: fixed;
   z-index: 2147483600;
   box-sizing: border-box;
-  padding: 12px 14px 10px;
+  /* No top padding: the blue header runs to the card's edges and supplies it. */
+  padding: 0 14px 12px;
   border-radius: 12px;
   border: 1px solid var(--rmpx-border);
+  overflow: hidden;
   background: var(--rmpx-surface);
   color: var(--rmpx-text);
   box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18), 0 2px 6px rgba(15, 23, 42, 0.08);
@@ -157,25 +217,31 @@ a.rmpx-name[data-rmpx]:focus-visible {
 
 .rmpx-card[data-rmpx] * { box-sizing: border-box; }
 
+/*
+ * Identity block -- name, department, campus and the headline score -- filled
+ * in CUNY Blue and bled to the card's edges, with the Taxi rule underneath it.
+ */
 .rmpx-card__header[data-rmpx] {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--rmpx-border);
+  margin: 0 -14px;
+  padding: 11px 14px 10px;
+  background: var(--rmpx-cuny-blue);
+  border-bottom: 3px solid var(--rmpx-cuny-taxi);
 }
 
 .rmpx-card__name[data-rmpx] {
   font-size: 14px;
   font-weight: 700;
-  color: var(--rmpx-text);
+  color: var(--rmpx-on-blue);
 }
 
 .rmpx-card__meta[data-rmpx] {
   margin-top: 1px;
   font-size: 11px;
-  color: var(--rmpx-muted);
+  color: var(--rmpx-on-blue-muted);
 }
 
 .rmpx-card__score[data-rmpx] {
@@ -183,17 +249,17 @@ a.rmpx-name[data-rmpx]:focus-visible {
   align-items: baseline;
   gap: 1px;
   font-weight: 800;
-  color: var(--rmpx-unknown);
+  color: var(--rmpx-on-blue-unknown);
 }
 
-.rmpx-card__score[data-rmpx][data-rmpx-tone='great'] { color: var(--rmpx-great); }
-.rmpx-card__score[data-rmpx][data-rmpx-tone='ok'] { color: var(--rmpx-ok); }
-.rmpx-card__score[data-rmpx][data-rmpx-tone='poor'] { color: var(--rmpx-poor); }
+.rmpx-card__score[data-rmpx][data-rmpx-tone='great'] { color: var(--rmpx-on-blue-great); }
+.rmpx-card__score[data-rmpx][data-rmpx-tone='ok'] { color: var(--rmpx-on-blue-ok); }
+.rmpx-card__score[data-rmpx][data-rmpx-tone='poor'] { color: var(--rmpx-on-blue-poor); }
 
 .rmpx-card__score-value[data-rmpx] { font-size: 24px; line-height: 1; }
-.rmpx-card__score-max[data-rmpx] { font-size: 11px; opacity: 0.6; font-weight: 600; }
+.rmpx-card__score-max[data-rmpx] { font-size: 11px; opacity: 0.7; font-weight: 600; }
 
-.rmpx-card__body[data-rmpx] { padding-top: 9px; }
+.rmpx-card__body[data-rmpx] { padding-top: 10px; }
 
 .rmpx-card__stats[data-rmpx] {
   display: flex;
@@ -226,9 +292,9 @@ a.rmpx-name[data-rmpx]:focus-visible {
 }
 
 .rmpx-card__sentiment-slice[data-rmpx] { height: 100%; }
-.rmpx-card__sentiment-slice[data-rmpx][data-rmpx-bucket='awesome'] { background: var(--rmpx-great); }
-.rmpx-card__sentiment-slice[data-rmpx][data-rmpx-bucket='good'] { background: #eab308; }
-.rmpx-card__sentiment-slice[data-rmpx][data-rmpx-bucket='bad'] { background: var(--rmpx-poor); }
+.rmpx-card__sentiment-slice[data-rmpx][data-rmpx-bucket='awesome'] { background: var(--rmpx-great-fill); }
+.rmpx-card__sentiment-slice[data-rmpx][data-rmpx-bucket='good'] { background: var(--rmpx-ok-fill); }
+.rmpx-card__sentiment-slice[data-rmpx][data-rmpx-bucket='bad'] { background: var(--rmpx-poor-fill); }
 
 .rmpx-card__legend[data-rmpx] {
   display: flex;
@@ -247,9 +313,9 @@ a.rmpx-name[data-rmpx]:focus-visible {
   display: inline-block;
 }
 
-.rmpx-card__legend-dot[data-rmpx][data-rmpx-bucket='awesome'] { background: var(--rmpx-great); }
-.rmpx-card__legend-dot[data-rmpx][data-rmpx-bucket='good'] { background: #eab308; }
-.rmpx-card__legend-dot[data-rmpx][data-rmpx-bucket='bad'] { background: var(--rmpx-poor); }
+.rmpx-card__legend-dot[data-rmpx][data-rmpx-bucket='awesome'] { background: var(--rmpx-great-fill); }
+.rmpx-card__legend-dot[data-rmpx][data-rmpx-bucket='good'] { background: var(--rmpx-ok-fill); }
+.rmpx-card__legend-dot[data-rmpx][data-rmpx-bucket='bad'] { background: var(--rmpx-poor-fill); }
 
 /* 5-to-1 histogram */
 
@@ -279,11 +345,11 @@ a.rmpx-name[data-rmpx]:focus-visible {
   min-width: 0;
 }
 
-.rmpx-card__hist-fill[data-rmpx][data-rmpx-star='5'] { background: var(--rmpx-great); }
-.rmpx-card__hist-fill[data-rmpx][data-rmpx-star='4'] { background: #65a30d; }
-.rmpx-card__hist-fill[data-rmpx][data-rmpx-star='3'] { background: #eab308; }
-.rmpx-card__hist-fill[data-rmpx][data-rmpx-star='2'] { background: #f97316; }
-.rmpx-card__hist-fill[data-rmpx][data-rmpx-star='1'] { background: var(--rmpx-poor); }
+.rmpx-card__hist-fill[data-rmpx][data-rmpx-star='5'] { background: var(--rmpx-star-5); }
+.rmpx-card__hist-fill[data-rmpx][data-rmpx-star='4'] { background: var(--rmpx-star-4); }
+.rmpx-card__hist-fill[data-rmpx][data-rmpx-star='3'] { background: var(--rmpx-star-3); }
+.rmpx-card__hist-fill[data-rmpx][data-rmpx-star='2'] { background: var(--rmpx-star-2); }
+.rmpx-card__hist-fill[data-rmpx][data-rmpx-star='1'] { background: var(--rmpx-star-1); }
 
 .rmpx-card__hist-count[data-rmpx] {
   font-size: 11px;
@@ -304,10 +370,10 @@ a.rmpx-name[data-rmpx]:focus-visible {
 .rmpx-card__tag[data-rmpx] {
   padding: 2px 7px;
   border-radius: 999px;
-  background: #f1f5f9;
+  background: var(--rmpx-cuny-pearl);
   border: 1px solid var(--rmpx-border);
   font-size: 10px;
-  color: #334155;
+  color: var(--rmpx-cuny-indigo);
   text-transform: uppercase;
   letter-spacing: 0.02em;
 }
@@ -334,7 +400,7 @@ a.rmpx-name[data-rmpx]:focus-visible {
 }
 
 .rmpx-card__link[data-rmpx] {
-  color: #2563eb;
+  color: var(--rmpx-cuny-azure);
   font-size: 11px;
   font-weight: 600;
   text-decoration: none;
@@ -346,27 +412,36 @@ a.rmpx-name[data-rmpx]:focus-visible {
  * Dark mode
  * -------------------------------------------------------------------------- */
 
+/* Indigo is CUNY's own dark surface, so the card keeps its identity at night. */
 @media (prefers-color-scheme: dark) {
   .rmpx-card[data-rmpx] {
-    --rmpx-surface: #1f2937;
-    --rmpx-text: #f3f4f6;
-    --rmpx-muted: #9ca3af;
-    --rmpx-border: #374151;
-    --rmpx-unknown-bg: #374151;
+    --rmpx-surface: #011d49;
+    --rmpx-text: #f7f4eb;
+    --rmpx-muted: #a3c9ff;
+    --rmpx-border: #10306b;
+    --rmpx-unknown-bg: #10306b;
     --rmpx-great: #4ade80;
-    --rmpx-ok: #fbbf24;
-    --rmpx-poor: #f87171;
+    --rmpx-ok: #ffb71b;
+    --rmpx-poor: #ffcbca;
+
+    /* Cranberry sinks into Indigo, so the bottom of the ramp moves up to
+       Strawberry to stay readable as a bar. */
+    --rmpx-great-fill: #4ade80;
+    --rmpx-poor-fill: #ea0045;
+    --rmpx-star-5: #4ade80;
+    --rmpx-star-1: #ea0045;
   }
 
   .rmpx-card__tag[data-rmpx] {
-    background: #374151;
-    color: #e5e7eb;
+    background: #10306b;
+    border-color: #1c4494;
+    color: #f7f4eb;
   }
 
   .rmpx-card__warning[data-rmpx] {
-    background: rgba(251, 191, 36, 0.15);
-    color: #fbbf24;
+    background: rgba(255, 183, 27, 0.16);
+    color: var(--rmpx-cuny-taxi);
   }
 
-  .rmpx-card__link[data-rmpx] { color: #93c5fd; }
+  .rmpx-card__link[data-rmpx] { color: var(--rmpx-cuny-sky); }
 }

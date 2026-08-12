@@ -8,7 +8,7 @@ score breakdown on hover.
 ## What it does
 
 - **Inline rating badge** next to every instructor name, colour-coded green /
-  yellow / red, with the number of ratings behind it.
+  yellow / red, with the rating count spelled out behind it.
 - **The name becomes a link** straight to that professor's RMP profile. When
   nobody matches, it links to an RMP search for the name instead.
 - **Hover preview** showing the headline score, would-take-again percentage,
@@ -34,9 +34,94 @@ permission to that one origin and registers the content scripts there, no code
 change or reinstall needed. The same button turns it back off and revokes the
 permission.
 
-All 25 CUNY campuses are recognised. The campus is detected from the page
-(institution dropdown, page title, header branding, URL) and can be pinned
-manually from the popup.
+All 26 CUNY campuses are recognised. The campus is detected from the page —
+institution dropdown, page title, header branding, URL — and falls back to
+Baruch if none of those say.
+
+## Install
+
+The extension is unpacked-only — it is not in any extension store. It runs on
+Chrome, Firefox and Safari from one source tree; only the manifest differs, and
+`npm run build` generates all three.
+
+### Chrome / Edge
+
+1. Clone this repo.
+2. Open `chrome://extensions` (or `edge://extensions`).
+3. Turn on **Developer mode**.
+4. Click **Load unpacked** and pick the repo folder.
+5. Open Schedule Builder and search for classes.
+
+The repo root *is* the Chrome extension, so there is no build step for it.
+
+### Firefox
+
+Needs **Firefox 128 or newer**. Earlier releases either do not grant Manifest V3
+host permissions at install (before 127) or do not understand
+`optional_host_permissions` (before 128), and the extension installs but never
+reaches Rate My Professors.
+
+```bash
+npm run build          # writes dist/firefox
+```
+
+1. Open `about:debugging#/runtime/this-firefox`.
+2. Click **Load Temporary Add-on…**
+3. Pick `dist/firefox/manifest.json`.
+
+Temporary add-ons are cleared when Firefox closes. For a permanent install the
+add-on has to be signed through [addons.mozilla.org](https://addons.mozilla.org).
+
+### Safari
+
+Needs **macOS with Xcode** — Safari cannot load an unpacked extension the way
+Chrome and Firefox can, so it has to be wrapped in a native app first.
+
+```bash
+npm run build          # writes dist/safari
+xcrun safari-web-extension-converter dist/safari \
+  --app-name "RMP for CUNYfirst" \
+  --bundle-identifier com.example.rmp-cunyfirst
+```
+
+That generates an Xcode project. Build and run it, then enable the extension in
+**Safari → Settings → Extensions**. Safari does not show host permissions at
+install: open a Schedule Builder page, click the extension in the toolbar and
+choose **Always Allow on This Website**, or nothing will be annotated.
+
+No bundler, no transpiler and no `npm install` is required to run any of the
+three — the build script only copies files and writes a manifest. Dependencies
+are needed for the browser-based tests.
+
+### Packaging for a store
+
+Upload `dist/<browser>`, **not** the repo root — the root carries `test/`,
+`tools/`, `docs/` and `node_modules`, none of which belong in a shipped
+extension. `dist/chrome` is the same extension at 22 files.
+
+```bash
+npm run build
+cd dist/chrome && zip -r ../rmp-cunyfirst-chrome.zip .          # macOS / Linux
+```
+
+```powershell
+npm run build
+Compress-Archive dist\chrome\* dist\rmp-cunyfirst-chrome.zip -Force   # Windows
+```
+
+`manifest.json` has to sit at the **top level** of the archive. Note the `\*` —
+zipping the folder itself nests everything one level down and every browser
+then rejects it as having no manifest.
+
+Permissions, and what each is actually for, if a reviewer asks:
+
+| Permission | Why |
+| --- | --- |
+| `storage` | The rating cache, in `chrome.storage.local`. Nothing leaves the browser. |
+| `scripting` | Registers content scripts on a site the user opts in to. |
+| `activeTab` | Reads the current tab's origin when the popup opens, to offer that opt-in. |
+| `host_permissions` | `ratemyprofessors.com` to fetch ratings; the two campus domains to annotate them. |
+| `optional_host_permissions` | Not granted at install. Backs the "Turn on for this site" button, one origin per grant. |
 
 ## How it works
 
@@ -51,10 +136,11 @@ CUNYfirst page
    └─ chrome.runtime.sendMessage
           │
           ▼
-   service-worker.js
+   background (service worker on Chrome, event page on Firefox/Safari)
    ├─ schools.js      campus  ->  RMP school id (resolved live, then cached)
    ├─ rmp-client.js   GraphQL search + profile detail
    ├─ matching.js     scores candidates, rejects anything below the bar
+   ├─ origins.js      which sites may be injected into, and which never may
    └─ cache.js        TTL cache in chrome.storage.local
 ```
 
@@ -83,17 +169,38 @@ day, and identical in-flight requests are de-duplicated, so a results page with
 40 instructors makes at most 40 requests once and none on the next visit.
 Outbound requests are capped at 3 concurrent with a minimum gap between them.
 
+## Settings
+
+<img src="docs/popup.png" alt="The extension popup" width="320">
+
+Two, and deliberately only two. Ratings and the hover preview are always on, and
+the card always shows difficulty and would-take-again — those are behaviour, not
+preferences. The popup carries the two things that genuinely cannot be defaults:
+
+- **Campus** — detection reads the college off the page, but plenty of pages
+  never name it, and the fallback is a guess. A wrong guess is worse than no
+  guess here: it returns a real professor with a real rating from the wrong
+  college. Pick your campus and it is used regardless of what the page says.
+- **This site** — turn the extension on for a Schedule Builder the manifest does
+  not already cover. Needs a host permission, and browsers only grant those from
+  a click.
+
+Changing campus takes effect immediately on any page already open; every badge
+is cleared and re-resolved against the new college.
+
 ## Privacy
 
 - The only host contacted is `ratemyprofessors.com`, and only to look up the
   names already displayed on the page you are viewing.
-- The broad `https://*/*` entry is an **optional** permission — Chrome does not
-  grant it at install time. It exists solely so the "Turn on for this site"
+- The broad `https://*/*` entry is an **optional** permission — no browser
+  grants it at install time. It exists solely so the "Turn on for this site"
   button has something to request, and each use grants exactly one origin.
+- `ratemyprofessors.com` is a host permission so the background can fetch from
+  it. The content scripts never run there, so RMP's own pages are left alone.
 - No analytics, no telemetry, no third-party servers, no accounts.
 - Requests are sent with `credentials: 'omit'`, so no cookies go with them.
-- Everything cached (ratings, resolved school ids, your settings) stays in local
-  browser storage.
+- Everything cached (ratings, resolved school ids) stays in local browser
+  storage.
 
 ## Development
 
@@ -101,13 +208,18 @@ Outbound requests are capped at 3 concurrent with a minimum gap between them.
 npm test              # unit tests -- no dependencies, uses node:test
 npm run test:dom      # DOM tests in real Chromium (needs playwright)
 npm run test:dom -- --shots   # ...and write screenshots to test/screenshots
+npm run build         # write dist/chrome, dist/firefox, dist/safari
+npm run build firefox # ...or just one
 npm run icons         # regenerate the PNG icons
+
+npx web-ext lint --source-dir dist/firefox    # Mozilla's validator (optional)
 ```
 
 The unit suite covers name parsing, match scoring, campus detection, subject
-mapping and API response shaping, plus structural checks on `manifest.json`
-(every referenced file exists, content scripts are in dependency order, host
-permissions cover every injected origin, all JS parses).
+mapping, origin classification and API response shaping, plus structural checks
+run against **all three manifests** (every referenced file exists, scripts are
+in dependency order, host permissions cover every injected origin, no content
+script targets RMP itself, all JS parses).
 
 `test/dom.integration.js` drives the content scripts against
 `test/fixtures/schedule-builder.html` in headless Chromium with the messaging
@@ -116,18 +228,39 @@ co-taught cells split into two links, the hover card renders the right
 distribution, and teardown restores the page byte for byte.
 
 ```
-manifest.json
-src/lib/          shared code (loaded as content scripts, via importScripts, and by tests)
-src/background/   MV3 service worker -- the only place that talks to RMP
+manifest.json     the Chrome manifest (hand-maintained; a test keeps it in step)
+src/lib/          shared code (content scripts, background, and the tests)
+src/background/   the only place that talks to RMP
 src/content/      scanner, annotator, hover card, styles
-src/popup/        settings UI
-tools/            dependency-free PNG icon generator
+src/popup/        toolbar popup -- per-site opt-in, nothing else
+tools/            manifest generator, build script, PNG icon generator
 test/             unit tests + browser integration test
+dist/             per-browser bundles (generated, not committed)
 ```
 
 Every file is a classic script that hangs its exports off a single `RMPX`
-global, which is what lets the same source run as a content script, inside the
-service worker, and under `node --test` with no build step.
+global. That is what lets the same source run as a content script, as a Chrome
+service worker, as a Firefox/Safari event page, and under `node --test`, with
+no bundler anywhere.
+
+### What differs between browsers
+
+Only the manifest, which is why it is generated from one base in
+`tools/manifests.js` rather than kept as three files that drift.
+
+| | Chrome | Firefox | Safari |
+| --- | --- | --- | --- |
+| Background | service worker | event page | event page |
+| Loads libraries via | `importScripts()` | manifest | manifest |
+| Host permissions | granted at install | granted at install (127+) | granted per site, at time of use |
+| Install | Load unpacked | `about:debugging` | Xcode wrapper |
+
+Firefox has no service worker in Manifest V3 at all, so the background runs as
+an event page there — where `importScripts` does not exist and the manifest has
+to preload the libraries itself. Safari supports both; it gets the event page
+too, so there is one fewer environment to differ. The background script guards
+its `importScripts` call and works either way, and a test asserts the two lists
+cannot fall out of step.
 
 ## Troubleshooting
 

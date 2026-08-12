@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "RMP for CUNYfirst Schedule Builder",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Shows Rate My Professors ratings, profile links and a hover preview of the score breakdown directly inside CUNYfirst Schedule Builder.",
   "minimum_chrome_version": "102",
 

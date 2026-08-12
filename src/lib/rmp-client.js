@@ -23,6 +23,17 @@
   const MAX_CONCURRENCY = 3;
   const MIN_GAP_MS = 120;
 
+  /**
+   * How many reviews to tally tags from, and how many tags to keep.
+   *
+   * RMP returns reviews newest-first, so this is the professor's recent form
+   * rather than their all-time record -- which is what a student picking a
+   * section this semester actually wants. It covers every review outright for
+   * all but the most-reviewed professors, and only costs about 5 KB.
+   */
+  const TAG_SAMPLE_SIZE = 100;
+  const TAG_LIMIT = 6;
+
   const SCHOOL_SEARCH_QUERY = [
     'query SchoolSearch($query: SchoolSearchQuery!) {',
     '  newSearch {',
@@ -50,13 +61,14 @@
   ].join('\n');
 
   const TEACHER_DETAIL_QUERY = [
-    'query TeacherDetail($id: ID!) {',
+    'query TeacherDetail($id: ID!, $tagSample: Int) {',
     '  node(id: $id) {',
     '    ... on Teacher {',
     '      id legacyId firstName lastName department',
     '      avgRating numRatings avgDifficulty wouldTakeAgainPercent',
     '      ratingsDistribution { r1 r2 r3 r4 r5 total }',
     '      teacherRatingTags { tagName tagCount }',
+    '      ratings(first: $tagSample) { edges { node { ratingTags } } }',
     '      school { id name }',
     '    }',
     '  }',
@@ -226,15 +238,73 @@
     return { counts: counts, total: total };
   }
 
+  /** Most-mentioned first, alphabetical within a tie so the order is stable. */
+  function rankTags(tags) {
+    return tags
+      .filter(function (tag) { return tag && tag.name; })
+      .sort(function (a, b) {
+        if (b.count !== a.count) return b.count - a.count;
+        return a.name.localeCompare(b.name);
+      })
+      .slice(0, TAG_LIMIT);
+  }
+
+  /**
+   * The pre-tallied aggregate. RMP still answers this field but has returned an
+   * empty list for every professor since some time before August 2026, so it is
+   * only ever a bonus -- aggregateRatingTags below is what actually fills the
+   * card. Kept because it costs nothing and would be the better source if RMP
+   * ever repopulates it.
+   */
   function shapeTags(tags) {
     if (!Array.isArray(tags)) return [];
-    return tags
+    return rankTags(tags
       .filter(function (tag) { return tag && tag.tagName; })
       .map(function (tag) {
         return { name: String(tag.tagName), count: numberOrNull(tag.tagCount) || 0 };
-      })
-      .sort(function (a, b) { return b.count - a.count; })
-      .slice(0, 6);
+      }));
+  }
+
+  /**
+   * Tally the tags students actually attached to their reviews.
+   *
+   * Each review carries its tags as one '--'-separated string, e.g.
+   * "Tough grader--Test heavy--Accessible outside class". Spelling drifts in
+   * the real data -- "Tough grader", "Tough Grader" and "LECTURE HEAVY" all
+   * occur -- so tags are grouped case-insensitively and shown in whichever
+   * spelling the most reviewers used.
+   */
+  function aggregateRatingTags(ratings) {
+    const groups = new Map();
+
+    edgesOf(ratings).forEach(function (node) {
+      String((node && node.ratingTags) || '').split('--').forEach(function (raw) {
+        const name = String(raw).replace(/\s+/g, ' ').trim();
+        if (!name) return;
+
+        const key = name.toLowerCase();
+        const group = groups.get(key) || { count: 0, spellings: new Map() };
+        group.count += 1;
+        group.spellings.set(name, (group.spellings.get(name) || 0) + 1);
+        groups.set(key, group);
+      });
+    });
+
+    const tags = [];
+    groups.forEach(function (group) {
+      let best = null;
+      let bestSeen = 0;
+      // Map preserves insertion order, so ties keep the spelling seen first.
+      group.spellings.forEach(function (seen, spelling) {
+        if (seen > bestSeen) {
+          best = spelling;
+          bestSeen = seen;
+        }
+      });
+      tags.push({ name: best, count: group.count });
+    });
+
+    return rankTags(tags);
   }
 
   /* ----------------------------------------------------------------------- *
@@ -275,11 +345,11 @@
     return edgesOf(container).map(shapeTeacher).filter(Boolean);
   }
 
-  /** Full profile including the score distribution shown in the hover card. */
+  /** Full profile including the score distribution and tags in the hover card. */
   async function getTeacherDetail(nodeId) {
     const data = await post({
       query: TEACHER_DETAIL_QUERY,
-      variables: { id: String(nodeId) },
+      variables: { id: String(nodeId), tagSample: TAG_SAMPLE_SIZE },
     });
     const node = data && data.node;
     if (!node) return null;
@@ -287,7 +357,9 @@
     const teacher = shapeTeacher(node);
     if (!teacher) return null;
     teacher.distribution = shapeDistribution(node.ratingsDistribution);
-    teacher.tags = shapeTags(node.teacherRatingTags);
+
+    const aggregate = shapeTags(node.teacherRatingTags);
+    teacher.tags = aggregate.length ? aggregate : aggregateRatingTags(node.ratings);
     return teacher;
   }
 
@@ -296,10 +368,12 @@
     searchSchools: searchSchools,
     searchTeachers: searchTeachers,
     getTeacherDetail: getTeacherDetail,
+    TAG_LIMIT: TAG_LIMIT,
     // exposed for tests
     _shapeTeacher: shapeTeacher,
     _shapeDistribution: shapeDistribution,
     _shapeTags: shapeTags,
+    _aggregateRatingTags: aggregateRatingTags,
   };
 
   if (typeof module !== 'undefined' && module.exports) module.exports = RMPX.rmpClient;

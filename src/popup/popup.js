@@ -1,9 +1,18 @@
 /**
  * Popup controller.
  *
- * The popup owns no state of its own: it reads settings from the service
- * worker, writes changes straight back, and lets chrome.storage.onChanged
- * propagate them to any open CUNYfirst tab.
+ * The extension is deliberately almost settings-free -- everything runs on the
+ * defaults in namespace.js -- so the popup carries only the two things that
+ * genuinely cannot be defaults:
+ *
+ *   Campus        Detection reads the college off the page, but plenty of
+ *                 pages never name it. The fallback is a guess, and a wrong
+ *                 guess means ratings for a different school's professor, so
+ *                 the user gets to pin it.
+ *
+ *   This site     Schedule Builder is not at the same address for every
+ *                 campus, and reaching one the manifest does not cover needs a
+ *                 host permission, which the browser only grants from a click.
  */
 (function (root) {
   'use strict';
@@ -11,22 +20,17 @@
   const RMPX = root.RMPX;
   const { MSG } = RMPX;
 
-  const TOGGLES = ['enabled', 'hoverCards', 'showDifficulty', 'showWouldTakeAgain'];
+  /** Sentinel for "work it out from the page" -- no campus uses this key. */
+  const AUTO = 'auto';
 
   const elements = {
-    enabled: document.getElementById('enabled'),
-    hoverCards: document.getElementById('hoverCards'),
-    autoDetect: document.getElementById('autoDetect'),
-    manualSchoolKey: document.getElementById('manualSchoolKey'),
-    showDifficulty: document.getElementById('showDifficulty'),
-    showWouldTakeAgain: document.getElementById('showWouldTakeAgain'),
-    schoolLabel: document.getElementById('schoolLabel'),
-    cacheStats: document.getElementById('cacheStats'),
-    clearCache: document.getElementById('clearCache'),
+    campus: document.getElementById('campus'),
+    campusNote: document.getElementById('campusNote'),
     siteSection: document.getElementById('siteSection'),
     siteOrigin: document.getElementById('siteOrigin'),
     siteNote: document.getElementById('siteNote'),
     siteToggle: document.getElementById('siteToggle'),
+    idleSection: document.getElementById('idleSection'),
   };
 
   /** Origin of the tab this popup was opened over, or null if unreadable. */
@@ -45,8 +49,18 @@
     });
   }
 
-  function populateSchools() {
+  /* ----------------------------------------------------------------------- *
+   * Campus
+   * ----------------------------------------------------------------------- */
+
+  function populateCampuses() {
     const fragment = document.createDocumentFragment();
+
+    const auto = document.createElement('option');
+    auto.value = AUTO;
+    auto.textContent = 'Detect automatically';
+    fragment.appendChild(auto);
+
     RMPX.schools.listSchools()
       .slice()
       .sort(function (a, b) { return a.name.localeCompare(b.name); })
@@ -56,55 +70,37 @@
         option.textContent = school.name;
         fragment.appendChild(option);
       });
-    elements.manualSchoolKey.appendChild(fragment);
+
+    elements.campus.appendChild(fragment);
   }
 
-  function render(settings) {
-    TOGGLES.forEach(function (key) {
-      if (elements[key]) elements[key].checked = Boolean(settings[key]);
-    });
+  function renderCampus(settings) {
+    const wanted = settings.schoolMode === 'manual' && settings.manualSchoolKey
+      ? settings.manualSchoolKey
+      : AUTO;
 
-    const auto = settings.schoolMode !== 'manual';
-    elements.autoDetect.checked = auto;
-    elements.manualSchoolKey.value = settings.manualSchoolKey || 'baruch';
-    elements.schoolLabel.textContent = auto ? 'Fall back to' : 'Always use';
+    elements.campus.value = wanted;
+    // Assigning a value with no matching <option> leaves the select showing
+    // nothing at all, so fall back rather than render a blank control.
+    if (!elements.campus.value) elements.campus.value = AUTO;
 
-    // Everything except the master switch is meaningless while disabled.
-    const disabled = !settings.enabled;
-    ['hoverCards', 'autoDetect', 'manualSchoolKey', 'showDifficulty', 'showWouldTakeAgain']
-      .forEach(function (key) {
-        if (elements[key]) elements[key].disabled = disabled;
-      });
+    elements.campusNote.textContent = elements.campus.value === AUTO
+      ? 'Read from the page. Pick a college if it guesses wrong.'
+      : 'Always used, whatever the page says.';
   }
 
-  async function patch(changes) {
-    const response = await sendMessage(MSG.SET_SETTINGS, { settings: changes });
-    if (response && response.ok && response.settings) render(response.settings);
-  }
+  async function onCampusChange() {
+    const value = elements.campus.value;
+    const patch = value === AUTO
+      ? { schoolMode: 'auto' }
+      : { schoolMode: 'manual', manualSchoolKey: value };
 
-  async function refreshCacheStats() {
-    const response = await sendMessage(MSG.CACHE_STATS, {});
-    if (!response || !response.ok || !response.stats) {
-      elements.cacheStats.textContent = 'Cache unavailable.';
-      return;
-    }
-    const { fresh, expired } = response.stats;
-    if (fresh === 0 && expired === 0) {
-      elements.cacheStats.textContent = 'Nothing cached yet.';
-      return;
-    }
-    elements.cacheStats.textContent =
-      fresh + ' professor' + (fresh === 1 ? '' : 's') + ' cached' +
-      (expired > 0 ? ', ' + expired + ' expired' : '') + '.';
+    const response = await sendMessage(MSG.SET_SETTINGS, { settings: patch });
+    if (response && response.ok && response.settings) renderCampus(response.settings);
   }
 
   /* ----------------------------------------------------------------------- *
    * Per-site activation
-   *
-   * Schedule Builder does not live at the same address for every campus. When
-   * the popup is opened over a page the manifest does not cover, this offers
-   * to grant that one origin and register the content scripts there, so the
-   * extension can be pointed at a new URL without a code change.
    * ----------------------------------------------------------------------- */
 
   function activeTabOrigin() {
@@ -128,13 +124,13 @@
     });
   }
 
+  /** Show the site panel, or the standing explanation when it does not apply. */
   function renderSite(status) {
-    if (!status || !status.supported) {
-      elements.siteSection.hidden = true;
-      return;
-    }
+    const applicable = Boolean(status && status.supported);
+    elements.siteSection.hidden = !applicable;
+    elements.idleSection.hidden = applicable;
+    if (!applicable) return;
 
-    elements.siteSection.hidden = false;
     elements.siteOrigin.textContent = status.origin.replace(/^https?:\/\//, '');
     elements.siteOrigin.setAttribute('data-state', status.enabled ? 'on' : 'off');
 
@@ -158,7 +154,7 @@
   async function refreshSite() {
     currentOrigin = await activeTabOrigin();
     if (!currentOrigin) {
-      elements.siteSection.hidden = true;
+      renderSite(null);
       return;
     }
     const response = await sendMessage(MSG.SITE_STATUS, { origin: currentOrigin });
@@ -199,44 +195,17 @@
     elements.siteToggle.disabled = false;
   }
 
-  function wireEvents() {
+  async function init() {
+    populateCampuses();
+    elements.campus.addEventListener('change', onCampusChange);
     elements.siteToggle.addEventListener('click', onSiteToggle);
 
-    TOGGLES.forEach(function (key) {
-      if (!elements[key]) return;
-      elements[key].addEventListener('change', function () {
-        const change = {};
-        change[key] = elements[key].checked;
-        patch(change);
-      });
-    });
-
-    elements.autoDetect.addEventListener('change', function () {
-      patch({ schoolMode: elements.autoDetect.checked ? 'auto' : 'manual' });
-    });
-
-    elements.manualSchoolKey.addEventListener('change', function () {
-      patch({ manualSchoolKey: elements.manualSchoolKey.value });
-    });
-
-    elements.clearCache.addEventListener('click', async function () {
-      elements.clearCache.disabled = true;
-      elements.clearCache.textContent = 'Clearing…';
-      await sendMessage(MSG.CLEAR_CACHE, {});
-      await refreshCacheStats();
-      elements.clearCache.textContent = 'Clear cached ratings';
-      elements.clearCache.disabled = false;
-    });
-  }
-
-  async function init() {
-    populateSchools();
-    wireEvents();
+    refreshSite();
 
     const response = await sendMessage(MSG.GET_SETTINGS, {});
-    render(Object.assign({}, RMPX.DEFAULT_SETTINGS, (response && response.settings) || {}));
-    refreshCacheStats();
-    refreshSite();
+    renderCampus(Object.assign(
+      {}, RMPX.DEFAULT_SETTINGS, (response && response.settings) || {}
+    ));
   }
 
   document.addEventListener('DOMContentLoaded', init);

@@ -45,12 +45,18 @@
    * phrases sitting right beside instructor names on Schedule Builder cards:
    * "Baruch College", "Online Synchronous", "Regular Academic Session".
    *
+   * A few entries are whole phrases with the spaces removed ("inperson",
+   * "facetoface"). Those exist because their individual words are innocent --
+   * "In" and "Person" disqualify nothing on their own -- so hasNonNameWord
+   * below tests the compacted phrase as well as each word.
+   *
    * Deliberately conservative -- anything that is also a plausible surname
    * (Hall, Church, Camp, Park, Field, Long, Young) is left out.
    */
   const NON_NAME_WORDS = new Set([
     'college', 'university', 'campus', 'school', 'academy', 'institute',
-    'online', 'synchronous', 'asynchronous', 'hybrid', 'inperson', 'remote',
+    'online', 'synchronous', 'asynchronous', 'hybrid', 'remote',
+    'inperson', 'facetoface',
     'course', 'courses', 'class', 'classes', 'section', 'sections',
     'lecture', 'laboratory', 'seminar', 'recitation', 'workshop',
     'term', 'semester', 'session', 'academic', 'regular', 'summer', 'winter',
@@ -63,10 +69,14 @@
     'vertical', 'building', 'library', 'center', 'centre', 'auditorium',
   ]);
 
-  /** True when any word in the phrase disqualifies it from being a name. */
+  /** True when the phrase, or any word in it, disqualifies it from being a name. */
   function hasNonNameWord(value) {
     if (!value) return false;
-    return String(value)
+    const text = String(value);
+    // "In Person" and "Face to Face" are instruction modes, not instructors,
+    // but every word in them is harmless in isolation.
+    if (NON_NAME_WORDS.has(normalizeToken(text))) return true;
+    return text
       .split(/[\s,.\-–—/()]+/)
       .some(function (token) {
         const normalized = normalizeToken(token);

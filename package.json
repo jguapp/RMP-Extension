@@ -1,12 +1,13 @@
 {
   "name": "rmp-extension",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Browser extension that surfaces Rate My Professors ratings, links and hover previews inside CUNYfirst Schedule Builder.",
   "scripts": {
     "test": "node --test test/*.test.js",
     "test:dom": "node test/dom.integration.js",
     "test:all": "npm test && npm run test:dom",
+    "build": "node tools/build.js",
     "icons": "node tools/make-icons.js"
   },
   "devDependencies": {

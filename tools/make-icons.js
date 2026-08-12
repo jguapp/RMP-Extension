@@ -81,7 +81,7 @@ function encodePng(width, height, rgba) {
 
 /** Signed coverage test for a rounded square centred in the canvas. */
 function insideRoundedSquare(x, y, size, radius) {
-  const inset = size * 0.055;
+  const inset = size * 0.04;
   const min = inset;
   const max = size - inset;
 
@@ -100,18 +100,6 @@ function insideRoundedSquare(x, y, size, radius) {
   return true;
 }
 
-/** Vertices of a five-pointed star, outer point up. */
-function starPolygon(cx, cy, outerRadius) {
-  const innerRadius = outerRadius * 0.4;
-  const points = [];
-  for (let i = 0; i < 10; i += 1) {
-    const radius = i % 2 === 0 ? outerRadius : innerRadius;
-    const angle = -Math.PI / 2 + (i * Math.PI) / 5;
-    points.push([cx + radius * Math.cos(angle), cy + radius * Math.sin(angle)]);
-  }
-  return points;
-}
-
 function insidePolygon(x, y, polygon) {
   let inside = false;
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
@@ -123,32 +111,133 @@ function insidePolygon(x, y, polygon) {
   return inside;
 }
 
+function insideRect(x, y, x0, y0, x1, y1) {
+  return x >= x0 && x <= x1 && y >= y0 && y <= y1;
+}
+
+function insideRing(x, y, cx, cy, outer, inner) {
+  const d2 = (x - cx) ** 2 + (y - cy) ** 2;
+  return d2 <= outer * outer && d2 >= inner * inner;
+}
+
 function mix(a, b, t) {
   return Math.round(a + (b - a) * t);
+}
+
+/* -------------------------------------------------------------------------- *
+ * The CUNY wordmark
+ *
+ * "CU" over "NY" in a heavy geometric grotesque, drawn as coverage tests
+ * rather than font glyphs so that this script keeps its one useful property:
+ * it runs on a bare checkout with no npm install and no binary blobs.
+ *
+ * The letters sit tighter here than in the official square lockup, which
+ * carries far more air around the mark. At 16px that air turns the whole
+ * thing to mush, so the wordmark is scaled up to stay readable in a toolbar.
+ * -------------------------------------------------------------------------- */
+
+/** C -- a ring with a horizontal slot cut out of its right side. */
+function insideC(x, y, x0, y0, side, stroke) {
+  const cx = x0 + side / 2;
+  const cy = y0 + side / 2;
+  if (!insideRing(x, y, cx, cy, side / 2, side / 2 - stroke)) return false;
+  const mouth = x >= cx && Math.abs(y - cy) <= side * 0.17;
+  return !mouth;
+}
+
+/** U -- two stems closed by a half-bowl. */
+function insideU(x, y, x0, y0, side, stroke) {
+  const radius = side / 2;
+  const bowlY = y0 + side - radius;
+  if (insideRect(x, y, x0, y0, x0 + stroke, bowlY)) return true;
+  if (insideRect(x, y, x0 + side - stroke, y0, x0 + side, bowlY)) return true;
+  return y >= bowlY &&
+    insideRing(x, y, x0 + radius, bowlY, radius, radius - stroke);
+}
+
+/** N -- two stems bridged by a diagonal. */
+function insideN(x, y, x0, y0, side, stroke) {
+  if (insideRect(x, y, x0, y0, x0 + stroke, y0 + side)) return true;
+  if (insideRect(x, y, x0 + side - stroke, y0, x0 + side, y0 + side)) return true;
+  // Slanted strokes need extra horizontal width to read as heavy as the stems.
+  const wide = stroke * 1.3;
+  return insidePolygon(x, y, [
+    [x0, y0],
+    [x0 + wide, y0],
+    [x0 + side, y0 + side],
+    [x0 + side - wide, y0 + side],
+  ]);
+}
+
+/** Y -- two arms meeting above a stem. */
+function insideY(x, y, x0, y0, side, stroke) {
+  const cx = x0 + side / 2;
+  const joint = y0 + side * 0.54;
+  const wide = stroke * 1.25;
+
+  if (insideRect(x, y, cx - stroke / 2, joint, cx + stroke / 2, y0 + side)) return true;
+  if (insidePolygon(x, y, [
+    [x0, y0],
+    [x0 + wide, y0],
+    [cx + stroke / 2, joint],
+    [cx - stroke / 2, joint],
+  ])) {
+    return true;
+  }
+  return insidePolygon(x, y, [
+    [x0 + side - wide, y0],
+    [x0 + side, y0],
+    [cx + stroke / 2, joint],
+    [cx - stroke / 2, joint],
+  ]);
+}
+
+/** True when the point falls on one of the four white letters. */
+function insideWordmark(x, y, size) {
+  const cell = size * 0.315;      // one glyph, square
+  const stroke = cell * 0.32;
+  const columnGap = size * 0.015;
+  const rowGap = size * 0.01;
+
+  const left = (size - (cell * 2 + columnGap)) / 2;
+  const top = (size - (cell * 2 + rowGap)) / 2;
+  const right = left + cell + columnGap;
+  const bottom = top + cell + rowGap;
+
+  if (x < left || x > left + cell * 2 + columnGap) return false;
+
+  if (y <= bottom) {
+    return x <= right
+      ? insideC(x, y, left, top, cell, stroke)
+      : insideU(x, y, right, top, cell, stroke);
+  }
+  return x <= right
+    ? insideN(x, y, left, bottom, cell, stroke)
+    : insideY(x, y, right, bottom, cell, stroke);
 }
 
 /* -------------------------------------------------------------------------- *
  * Rendering
  * -------------------------------------------------------------------------- */
 
-const TOP_COLOR = [37, 99, 235];    // indigo-blue
-const BOTTOM_COLOR = [13, 148, 136]; // teal
-const STAR_COLOR = [255, 255, 255];
+/** CUNY Blue, #0033A1, straight off the university identity palette. */
+const CUNY_BLUE = [0, 51, 161];
+const LETTER_COLOR = [255, 255, 255];
 
 function renderIcon(size) {
   const rgba = Buffer.alloc(size * size * 4);
-  const radius = size * 0.22;
-  const star = starPolygon(size / 2, size * 0.495, size * 0.31);
+  const radius = size * 0.14;
 
-  // 4x4 supersampling keeps the small sizes from looking ragged.
-  const samples = size <= 32 ? 4 : 3;
+  // Supersampling keeps the small sizes from looking ragged; the letterforms
+  // need more of it than the old star did.
+  const samples = size <= 32 ? 6 : 4;
   const step = 1 / samples;
   const offset = step / 2;
 
   for (let y = 0; y < size; y += 1) {
     for (let x = 0; x < size; x += 1) {
       let bgHits = 0;
-      let starHits = 0;
+      let letterHits = 0;
 
       for (let sy = 0; sy < samples; sy += 1) {
         for (let sx = 0; sx < samples; sx += 1) {
@@ -156,29 +245,21 @@ function renderIcon(size) {
           const py = y + offset + sy * step;
           if (insideRoundedSquare(px, py, size, radius)) {
             bgHits += 1;
-            if (insidePolygon(px, py, star)) starHits += 1;
+            if (insideWordmark(px, py, size)) letterHits += 1;
           }
         }
       }
 
       const total = samples * samples;
       const bgAlpha = bgHits / total;
-      const starAlpha = starHits / total;
 
-      const gradient = y / Math.max(1, size - 1);
-      const base = [
-        mix(TOP_COLOR[0], BOTTOM_COLOR[0], gradient),
-        mix(TOP_COLOR[1], BOTTOM_COLOR[1], gradient),
-        mix(TOP_COLOR[2], BOTTOM_COLOR[2], gradient),
-      ];
-
-      // Composite the star over the gradient, then the whole thing over
+      // Composite the letters over the blue, then the whole thing over
       // transparency using the rounded-square coverage as the alpha.
-      const t = bgAlpha > 0 ? starAlpha / bgAlpha : 0;
+      const t = bgAlpha > 0 ? letterHits / total / bgAlpha : 0;
       const index = (y * size + x) * 4;
-      rgba[index] = mix(base[0], STAR_COLOR[0], t);
-      rgba[index + 1] = mix(base[1], STAR_COLOR[1], t);
-      rgba[index + 2] = mix(base[2], STAR_COLOR[2], t);
+      rgba[index] = mix(CUNY_BLUE[0], LETTER_COLOR[0], t);
+      rgba[index + 1] = mix(CUNY_BLUE[1], LETTER_COLOR[1], t);
+      rgba[index + 2] = mix(CUNY_BLUE[2], LETTER_COLOR[2], t);
       rgba[index + 3] = Math.round(bgAlpha * 255);
     }
   }

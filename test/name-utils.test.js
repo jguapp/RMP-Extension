@@ -74,6 +74,12 @@ test('rejects Title Case phrases that sit beside instructor names', function () 
     'Newman Vertical Campus',
     'Class Details',
     'Schedule Results',
+    // Instruction modes. Every word in these is fine on its own, which is why
+    // they are held as whole phrases: "In Person" was being read as a person
+    // named In Person on any card whose instructor was still "Staff".
+    'In Person',
+    'In-Person',
+    'Face to Face',
   ].forEach(function (phrase) {
     assert.strictEqual(parseName(phrase), null, 'expected null for ' + JSON.stringify(phrase));
     assert.ok(!looksLikePersonName(phrase), 'should not look like a name: ' + phrase);

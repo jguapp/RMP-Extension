@@ -265,6 +265,9 @@ async function main() {
         });
       })(),
       staffTouched: document.querySelectorAll('#results-grid tbody tr:nth-child(3) a.rmpx-name').length,
+      // A card whose instructor is "Staff" must come back completely untouched.
+      unassignedCard: Array.from(document.querySelectorAll('#mth2610 a.rmpx-name'))
+        .map(function (a) { return a.textContent.trim(); }),
       // Any annotated text inside the detail cards that is not an instructor.
       cardNoise: Array.from(document.querySelectorAll('.class-details a.rmpx-name'))
         .filter(function (a) {
@@ -300,7 +303,7 @@ async function main() {
     const hansman = summary.anchors.find(function (a) { return a.text === 'Miriam Hansman'; });
     assert.ok(hansman, 'Schedule Builder card instructor was not found');
     assert.strictEqual(hansman.href, 'https://www.ratemyprofessors.com/professor/888');
-    assert.strictEqual(hansman.badgeText, '4.123');
+    assert.strictEqual(hansman.badgeText, '4.123ratings');
   });
 
   check('does not mistake card labels for professors', function () {
@@ -312,6 +315,13 @@ async function main() {
 
   check('does not annotate the Staff row', function () {
     assert.strictEqual(summary.staffTouched, 0);
+  });
+
+  check('leaves a section with no assigned professor alone', function () {
+    // Regression: "Staff" gave the icon-marker strategy no name, so it searched
+    // the rest of the card and linked "In Person" -- and would have linked
+    // "Ingersoll Hall" too, since a building can read exactly like a surname.
+    assert.deepStrictEqual(summary.unassignedCard, []);
   });
 
   check('preserves the original cell text verbatim', function () {
@@ -339,9 +349,10 @@ async function main() {
     assert.strictEqual(smith.state, 'match');
   });
 
-  check('shows the score and rating count on the badge', function () {
+  check('spells out the rating count on the badge', function () {
     const smith = summary.anchors.find(function (a) { return a.text === 'Smith,John A'; });
-    assert.strictEqual(smith.badgeText, '4.484');
+    // The count is labelled so "84" cannot be read as a second score.
+    assert.strictEqual(smith.badgeText, '4.484ratings');
     assert.strictEqual(smith.badgeTone, 'great');
   });
 
@@ -483,7 +494,17 @@ async function main() {
       });
     row.appendChild(tr);
   });
-  await page.waitForTimeout(900);
+  // The rescan is debounced by 350ms and then queued on requestIdleCallback
+  // with a 1200ms timeout, so it can legitimately take ~1.5s to land. Wait for
+  // the new link instead of sleeping a fixed amount, then let the page settle
+  // so that a second, duplicate pass would still show up in the count.
+  await page.waitForFunction(
+    function (want) { return document.querySelectorAll('a.rmpx-name').length >= want; },
+    beforeRescan + 1,
+    { timeout: 5000 }
+  );
+  await page.waitForTimeout(600);
+
   const afterRescan = await page.evaluate(function () {
     return document.querySelectorAll('a.rmpx-name').length;
   });

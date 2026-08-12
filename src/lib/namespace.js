@@ -15,7 +15,7 @@
 
   const RMPX = (root.RMPX = root.RMPX || {});
 
-  RMPX.VERSION = '1.1.0';
+  RMPX.VERSION = '1.2.0';
 
   /**
    * The content script bundle, in load order. Kept here so the service worker
@@ -36,6 +36,28 @@
 
   RMPX.CONTENT_CSS = ['src/content/styles.css'];
 
+  /**
+   * The background bundle, in load order.
+   *
+   * Chrome runs the background as an MV3 service worker and pulls these in with
+   * importScripts(). Firefox has no service worker in MV3 and Safari is happier
+   * without one, so both run the background as an event page instead -- where
+   * importScripts does not exist and the manifest has to list these files
+   * itself. tools/manifests.js builds that list from here, and a test asserts
+   * it still matches what the worker imports.
+   */
+  RMPX.BACKGROUND_JS = [
+    'src/lib/namespace.js',
+    'src/lib/name-utils.js',
+    'src/lib/matching.js',
+    'src/lib/schools.js',
+    'src/lib/origins.js',
+    'src/lib/cache.js',
+    'src/lib/rmp-client.js',
+  ];
+
+  RMPX.BACKGROUND_ENTRY = 'src/background/service-worker.js';
+
   /** Message types exchanged between content scripts, popup and worker. */
   RMPX.MSG = {
     LOOKUP: 'rmpx:lookup',
@@ -45,10 +67,26 @@
     SITE_STATUS: 'rmpx:site-status',
     ENABLE_SITE: 'rmpx:enable-site',
     DISABLE_SITE: 'rmpx:disable-site',
-    CACHE_STATS: 'rmpx:cache-stats',
-    CLEAR_CACHE: 'rmpx:clear-cache',
   };
 
+  /**
+   * The only settings a user can change, and therefore the only keys ever read
+   * back out of storage.
+   *
+   * Everything else in DEFAULT_SETTINGS is fixed behaviour. Keeping the read
+   * list this narrow is deliberate: an older build shipped a full settings UI,
+   * so somebody out there has an `enabled: false` sitting in storage, and
+   * honouring it now would switch the extension off with no UI left to switch
+   * it back on.
+   */
+  RMPX.STORED_SETTINGS = ['schoolMode', 'manualSchoolKey'];
+
+  /**
+   * Starting values for everything the extension can be told to do. Only the
+   * two keys in STORED_SETTINGS are ever overridden by the user; the rest are
+   * fixed behaviour, kept here so the values have one home rather than being
+   * scattered as literals across the content scripts.
+   */
   RMPX.DEFAULT_SETTINGS = {
     enabled: true,
     hoverCards: true,

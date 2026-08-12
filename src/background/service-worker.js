@@ -1,21 +1,30 @@
 /**
- * MV3 service worker: the only place that talks to Rate My Professors.
+ * The background script: the only place that talks to Rate My Professors.
  *
  * Content scripts never make cross-origin requests themselves. They send a
- * parsed instructor name here, and this worker owns school resolution, the
- * search + match pipeline, caching and request pacing. That keeps one shared
- * cache across every open Schedule Builder tab and one choke point for
- * outbound traffic.
+ * parsed instructor name here, and this owns school resolution, the search +
+ * match pipeline, caching and request pacing. That keeps one shared cache
+ * across every open Schedule Builder tab and one choke point for outbound
+ * traffic.
+ *
+ * This file runs in two different environments. Chrome loads it as an MV3
+ * service worker, where its dependencies have to be pulled in at runtime.
+ * Firefox and Safari load it as an event page, where importScripts does not
+ * exist and the manifest has already loaded those same files in order -- hence
+ * the guard. Everything below is plain script that works either way.
  */
 /* global importScripts */
-importScripts(
-  '/src/lib/namespace.js',
-  '/src/lib/name-utils.js',
-  '/src/lib/matching.js',
-  '/src/lib/schools.js',
-  '/src/lib/cache.js',
-  '/src/lib/rmp-client.js'
-);
+if (typeof importScripts === 'function') {
+  importScripts(
+    '/src/lib/namespace.js',
+    '/src/lib/name-utils.js',
+    '/src/lib/matching.js',
+    '/src/lib/schools.js',
+    '/src/lib/origins.js',
+    '/src/lib/cache.js',
+    '/src/lib/rmp-client.js'
+  );
+}
 
 (function (root) {
   'use strict';
@@ -27,32 +36,47 @@ importScripts(
   const schools = RMPX.schools;
   const matching = RMPX.matching;
   const nameUtils = RMPX.nameUtils;
+  const origins = RMPX.origins;
 
   /* ----------------------------------------------------------------------- *
    * Settings
+   *
+   * Almost everything is fixed. The campus is the one exception: it is read off
+   * the page, and on a page that names it nowhere the fallback is a guess --
+   * which produces confidently wrong matches from the wrong college. So the
+   * user can pin it.
+   *
+   * Only RMPX.STORED_SETTINGS is ever read back; see the note there for why.
+   * Both directions are validated against the real campus list, so junk in
+   * storage degrades to the default instead of poisoning every lookup.
    * ----------------------------------------------------------------------- */
 
-  function syncArea() {
-    if (chrome.storage && chrome.storage.sync) return chrome.storage.sync;
-    return chrome.storage.local;
+  function sanitizeSettings(patch) {
+    const clean = {};
+    if (!patch) return clean;
+    if (patch.schoolMode === 'auto' || patch.schoolMode === 'manual') {
+      clean.schoolMode = patch.schoolMode;
+    }
+    if (patch.manualSchoolKey && schools.getSchool(patch.manualSchoolKey)) {
+      clean.manualSchoolKey = patch.manualSchoolKey;
+    }
+    return clean;
   }
 
   function getSettings() {
     return new Promise(function (resolve) {
-      syncArea().get(DEFAULT_SETTINGS, function (stored) {
+      chrome.storage.local.get(RMPX.STORED_SETTINGS, function (stored) {
         void chrome.runtime.lastError;
-        resolve(Object.assign({}, DEFAULT_SETTINGS, stored || {}));
+        resolve(Object.assign({}, DEFAULT_SETTINGS, sanitizeSettings(stored)));
       });
     });
   }
 
   function setSettings(patch) {
     return new Promise(function (resolve) {
-      const clean = {};
-      Object.keys(DEFAULT_SETTINGS).forEach(function (key) {
-        if (patch && Object.prototype.hasOwnProperty.call(patch, key)) clean[key] = patch[key];
-      });
-      syncArea().set(clean, function () {
+      const clean = sanitizeSettings(patch);
+      if (!Object.keys(clean).length) return resolve();
+      chrome.storage.local.set(clean, function () {
         void chrome.runtime.lastError;
         resolve();
       });
@@ -122,8 +146,14 @@ importScripts(
     const schoolKey = payload.schoolKey || null;
     const cacheKey = lookupCacheKey(schoolKey, parsed);
 
+    // A miss expires sooner than a hit: a professor who has just been added to
+    // RMP should show up within a day, not sit behind a week-old "no profile".
+    const ttlFor = function (result) {
+      return result && result.status === 'match' ? TTL.HIT_MS : TTL.MISS_MS;
+    };
+
     try {
-      return await cache.getOrFetch(cacheKey, TTL.HIT_MS, async function () {
+      return await cache.getOrFetch(cacheKey, ttlFor, async function () {
         const school = schoolKey ? await resolveSchool(schoolKey) : null;
 
         let candidates = await client.searchTeachers(parsed.query, school ? school.id : null, 20);
@@ -167,7 +197,9 @@ importScripts(
     if (!nodeId) return { status: 'invalid' };
 
     try {
-      const detail = await cache.getOrFetch('detail:' + nodeId, TTL.DETAIL_MS, function () {
+      // v2: detail entries cached before tags were tallied from reviews hold an
+      // empty tag list, and would otherwise keep serving it for three days.
+      const detail = await cache.getOrFetch('detail:v2:' + nodeId, TTL.DETAIL_MS, function () {
         return client.getTeacherDetail(nodeId);
       });
       if (!detail) return { status: 'nomatch' };
@@ -193,14 +225,7 @@ importScripts(
   }
 
   function originPattern(origin) {
-    return String(origin).replace(/\/+$/, '') + '/*';
-  }
-
-  /** Origins already covered by the manifest need no dynamic registration. */
-  function isStaticallyCovered(origin) {
-    return /^https:\/\/([a-z0-9-]+\.)*(cuny\.edu|collegescheduler\.com)$/i.test(
-      String(origin).replace(/\/+$/, '')
-    );
+    return origins.normalize(origin) + '/*';
   }
 
   async function registerSite(origin) {
@@ -249,7 +274,12 @@ importScripts(
     const origin = payload && payload.origin;
     if (!origin) return { supported: false };
 
-    if (isStaticallyCovered(origin)) {
+    // Offering to "turn on" Rate My Professors itself makes no sense: the
+    // permission is already granted for fetching, and annotating RMP with RMP
+    // data is the clunkiest thing this extension could do.
+    if (origins.isApiHost(origin)) return { supported: false };
+
+    if (origins.isStaticallyCovered(origin)) {
       return { supported: true, origin: origin, enabled: true, builtIn: true };
     }
 
@@ -270,13 +300,14 @@ importScripts(
    */
   async function enableSite(payload) {
     const origin = payload && payload.origin;
-    if (!origin || isStaticallyCovered(origin)) return { enabled: true };
+    if (!origin || origins.isStaticallyCovered(origin)) return { enabled: true };
+    if (!origins.isOptInCandidate(origin)) return { enabled: false };
     return { enabled: await registerSite(origin) };
   }
 
   async function disableSite(payload) {
     const origin = payload && payload.origin;
-    if (!origin || isStaticallyCovered(origin)) return { enabled: true };
+    if (!origin || origins.isStaticallyCovered(origin)) return { enabled: true };
     await unregisterSite(origin);
     await new Promise(function (resolve) {
       chrome.permissions.remove({ origins: [originPattern(origin)] }, function () {
@@ -287,13 +318,48 @@ importScripts(
     return { enabled: false };
   }
 
-  /** Re-attach content scripts for every origin the user already granted. */
+  /**
+   * Remove registrations this extension should never have made.
+   *
+   * Earlier versions treated every granted origin as an opted-in site, and
+   * chrome.permissions.getAll() includes the manifest's own host permissions --
+   * so ratemyprofessors.com got the content scripts injected into it and
+   * instructor names on RMP's own pages picked up badges. Those registrations
+   * were made with persistAcrossSessions, so they outlive the fix and have to
+   * be actively torn down.
+   */
+  async function dropStrayRegistrations() {
+    let registered = [];
+    try {
+      registered = await chrome.scripting.getRegisteredContentScripts();
+    } catch (err) {
+      return;
+    }
+
+    const doomed = (registered || [])
+      .filter(function (script) {
+        return (script.matches || []).some(function (match) {
+          return !origins.isOptInCandidate(match);
+        });
+      })
+      .map(function (script) { return script.id; });
+
+    if (!doomed.length) return;
+    try {
+      await chrome.scripting.unregisterContentScripts({ ids: doomed });
+    } catch (err) {
+      // Already gone.
+    }
+  }
+
+  /** Re-attach content scripts for every origin the user actually opted in to. */
   async function syncRegistrations() {
-    const origins = await grantedOrigins();
-    for (let i = 0; i < origins.length; i += 1) {
-      const origin = String(origins[i]).replace(/\/\*$/, '');
-      if (!/^https?:\/\//i.test(origin)) continue;
-      if (isStaticallyCovered(origin)) continue;
+    await dropStrayRegistrations();
+
+    const granted = await grantedOrigins();
+    for (let i = 0; i < granted.length; i += 1) {
+      const origin = origins.normalize(granted[i]);
+      if (!origins.isOptInCandidate(origin)) continue;
       await registerSite(origin);
     }
   }
@@ -320,16 +386,9 @@ importScripts(
       await setSettings(payload && payload.settings);
       return { settings: await getSettings() };
     },
-    [MSG.CACHE_STATS]: async function () {
-      return { stats: await cache.stats() };
-    },
     [MSG.SITE_STATUS]: siteStatus,
     [MSG.ENABLE_SITE]: enableSite,
     [MSG.DISABLE_SITE]: disableSite,
-    [MSG.CLEAR_CACHE]: async function () {
-      const removed = await cache.clear();
-      return { removed: removed };
-    },
   };
 
   chrome.runtime.onMessage.addListener(function (message, _sender, sendResponse) {
@@ -349,7 +408,6 @@ importScripts(
   });
 
   chrome.runtime.onInstalled.addListener(function () {
-    getSettings().then(setSettings);
     cache.prune();
     syncRegistrations();
   });

@@ -294,19 +294,21 @@
     await applySettings(loaded);
   }
 
-  // React to the popup toggling things while a page is open.
+  // The campus picker is the one thing that can change while a page is open.
+  // applySettings already clears every badge when the campus moves, so the page
+  // re-resolves against the new college without needing a reload.
   if (chrome.storage && chrome.storage.onChanged) {
     chrome.storage.onChanged.addListener(function (changes, area) {
-      if (area !== 'sync' && area !== 'local') return;
-      const patch = {};
-      let touched = false;
-      Object.keys(changes).forEach(function (key) {
-        if (Object.prototype.hasOwnProperty.call(RMPX.DEFAULT_SETTINGS, key)) {
-          patch[key] = changes[key].newValue;
-          touched = true;
-        }
+      if (area !== 'local') return;
+      const touched = RMPX.STORED_SETTINGS.some(function (key) {
+        return Object.prototype.hasOwnProperty.call(changes, key);
       });
-      if (touched) applySettings(Object.assign({}, settings, patch));
+      // The rating cache lives in this same area and writes constantly.
+      if (!touched) return;
+
+      sendMessage(MSG.GET_SETTINGS, {}).then(function (response) {
+        if (response && response.ok && response.settings) applySettings(response.settings);
+      });
     });
   }
 

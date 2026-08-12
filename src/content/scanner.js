@@ -25,7 +25,6 @@
   const nameUtils = RMPX.nameUtils;
   const subjects = RMPX.subjects;
 
-  const PROCESSED_ATTR = 'data-rmpx-scanned';
   const INSTRUCTOR_WORD = /\b(?:instructor|professor|faculty|taught\s*by|teacher)s?\b/i;
 
   /**
@@ -117,6 +116,19 @@
     return added;
   }
 
+  /**
+   * True when this element is the page saying nobody is assigned yet --
+   * "Staff", "TBA", "To be Announced". Short text only, so a paragraph that
+   * merely mentions the word does not count.
+   */
+  function holdsPlaceholder(element) {
+    if (!element || isSkippable(element) || isOurs(element)) return false;
+    const text = (element.textContent || '').replace(/\s+/g, ' ').trim();
+    if (text.length < 2 || text.length > 40) return false;
+    if (!/[A-Za-z]/.test(text)) return false;
+    return nameUtils.isPlaceholderName(text);
+  }
+
   /** Course code from the nearest row/card, used as a department hint. */
   function subjectHintFor(element) {
     if (!subjects) return null;
@@ -163,9 +175,16 @@
       // 2. The marker is an icon or a label with no name of its own, so the
       //    name is a sibling, or shares the marker's immediate parent.
       let fromSiblings = 0;
+      let unassigned = false;
       let sibling = element.nextElementSibling;
       let steps = 0;
       while (sibling && steps < 3) {
+        // "Staff" beside the marker *is* this section's instructor value. There
+        // is nobody to look up, and nothing further along belongs to us either.
+        if (holdsPlaceholder(sibling)) {
+          unassigned = true;
+          break;
+        }
         fromSiblings += harvest(sibling, 'marker-sibling', hits, 6);
         sibling = sibling.nextElementSibling;
         steps += 1;
@@ -173,7 +192,13 @@
 
       // Fall back to the parent only when this marker's siblings gave nothing,
       // and only one level up, so we never vacuum up an entire card.
-      if (fromSiblings === 0 && element.parentElement) {
+      //
+      // A section with no professor assigned must not reach this fallback:
+      // Schedule Builder lays every detail row out under one parent, so
+      // searching it would step over "Staff" and label a neighbouring row --
+      // the instruction mode, or a room like "Ingersoll Hall" -- as the
+      // instructor.
+      if (fromSiblings === 0 && !unassigned && element.parentElement) {
         fromSiblings += harvest(element.parentElement, 'marker-parent', hits, 6);
       }
       beside += fromSiblings;
@@ -314,10 +339,6 @@
       seen.add(textNode);
 
       if (isOurs(textNode)) return;
-      if (textNode.parentElement.hasAttribute &&
-          textNode.parentElement.hasAttribute(PROCESSED_ATTR)) {
-        return;
-      }
 
       const rawText = (textNode.nodeValue || '').trim();
       if (!rawText || rawText.length > 200) return;
@@ -349,7 +370,6 @@
   }
 
   RMPX.scanner = {
-    PROCESSED_ATTR: PROCESSED_ATTR,
     MARKER_SELECTORS: MARKER_SELECTORS,
     scan: scan,
     report: report,
