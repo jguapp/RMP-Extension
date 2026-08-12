@@ -269,6 +269,20 @@
       body.appendChild(warning);
     }
 
+    // The campus narrows the search, so a guessed one can surface a real
+    // professor from the wrong college. Name the college that was assumed and
+    // point at the fix, rather than leaving the student to wonder.
+    if (result && result.campusGuessed) {
+      const warning = el('div', 'rmpx-card__warning');
+      const where = (professor.school && professor.school.name) || result.schoolName;
+      warning.textContent = where
+        ? 'This page did not say which college, so this is ' + where +
+          '. Set your campus in the extension popup if that is wrong.'
+        : 'This page did not say which college, so the campus was guessed. ' +
+          'Set yours in the extension popup.';
+      body.appendChild(warning);
+    }
+
     const stats = el('div', 'rmpx-card__stats');
     const ratingCount = professor.numRatings || 0;
     renderStat(stats, ratingCount === 1 ? 'rating' : 'ratings', String(ratingCount));

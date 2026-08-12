@@ -35,8 +35,15 @@ change or reinstall needed. The same button turns it back off and revokes the
 permission.
 
 All 26 CUNY campuses are recognised. The campus is detected from the page —
-institution dropdown, page title, header branding, URL — and falls back to
-Baruch if none of those say.
+institution dropdown, page title, header branding, URL.
+
+**When nothing on the page names a college**, the lookup still needs one:
+searching every campus at once matches strangers with the same surname. So it
+falls back to a default, but flags the result rather than presenting it as
+settled — the badge is marked uncertain and the hover card names the college it
+assumed and points at the campus picker. A real professor from the wrong campus
+looks exactly like a right answer, which makes it the worst mistake this
+extension can make silently.
 
 ## Install
 
@@ -197,7 +204,8 @@ is cleared and re-resolved against the new college.
   button has something to request, and each use grants exactly one origin.
 - `ratemyprofessors.com` is a host permission so the background can fetch from
   it. The content scripts never run there, so RMP's own pages are left alone.
-- No analytics, no telemetry, no third-party servers, no accounts.
+- No analytics, no telemetry, no third-party servers, no accounts. The full
+  policy is in [PRIVACY.md](PRIVACY.md).
 - Requests are sent with `credentials: 'omit'`, so no cookies go with them.
 - Everything cached (ratings, resolved school ids) stays in local browser
   storage.
@@ -211,9 +219,19 @@ npm run test:dom -- --shots   # ...and write screenshots to test/screenshots
 npm run build         # write dist/chrome, dist/firefox, dist/safari
 npm run build firefox # ...or just one
 npm run icons         # regenerate the PNG icons
+npm run screenshots   # regenerate the store screenshots at 1280x800
+
+npm run check:api     # smoke test the live RMP API (network, not in npm test)
 
 npx web-ext lint --source-dir dist/firefox    # Mozilla's validator (optional)
 ```
+
+`check:api` is deliberately outside `npm test`, which is offline and
+deterministic. It exists because of a failure the offline tests structurally
+cannot see: RMP quietly began returning an empty list from `teacherRatingTags`,
+so the hover card advertised tags and rendered none. Nothing threw and no test
+failed. It runs weekly in CI so the next such change is noticed in days rather
+than whenever somebody happens to look.
 
 The unit suite covers name parsing, match scoring, campus detection, subject
 mapping, origin classification and API response shaping, plus structural checks

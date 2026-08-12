@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <!--
+    A class listing that never names a college anywhere: no institution
+    picker, no branding, nothing in the title or the body text. Campus
+    detection has to fall back here, and the extension must say so rather
+    than quietly attributing the professor to the default campus.
+
+    Keep it that way -- adding any CUNY campus name or alias to this file,
+    even in a comment, makes detection succeed and the test vacuous.
+  -->
+  <title>Class Search Results</title>
+</head>
+<body>
+  <h1>Class Search Results</h1>
+
+  <table id="results-grid">
+    <thead>
+      <tr>
+        <th>Status</th>
+        <th>Class</th>
+        <th>Section</th>
+        <th>Days &amp; Times</th>
+        <th>Room</th>
+        <th>Instructor</th>
+        <th>Meeting Dates</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Open</td>
+        <td>ACC 3202</td>
+        <td>LEC 01</td>
+        <td>MoWe 9:05AM - 10:20AM</td>
+        <td>Rm 6-140</td>
+        <td>Smith,John A</td>
+        <td>08/26 - 12/16</td>
+      </tr>
+    </tbody>
+  </table>
+</body>
+</html>

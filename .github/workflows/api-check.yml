@@ -1,0 +1,28 @@
+name: API check
+
+# Deliberately not on push. This reaches Rate My Professors, which can be slow,
+# rate-limited or down -- none of which should fail somebody's pull request.
+# Weekly is enough to notice a change long before a semester's worth of students
+# does, and the run is a few seconds.
+on:
+  schedule:
+    - cron: '17 9 * * 1' # Mondays, 09:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: does the RMP API still look the way we expect
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+
+      - name: Smoke test the live API
+        run: npm run check:api

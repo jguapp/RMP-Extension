@@ -7,8 +7,10 @@
     "test": "node --test test/*.test.js",
     "test:dom": "node test/dom.integration.js",
     "test:all": "npm test && npm run test:dom",
+    "check:api": "node tools/check-api.js",
     "build": "node tools/build.js",
-    "icons": "node tools/make-icons.js"
+    "icons": "node tools/make-icons.js",
+    "screenshots": "node tools/make-screenshots.js"
   },
   "devDependencies": {
     "playwright": "^1.56.0"

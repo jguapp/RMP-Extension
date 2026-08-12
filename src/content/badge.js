@@ -98,15 +98,25 @@
     countLabel.textContent = professor.numRatings === 1 ? 'rating' : 'ratings';
     badge.appendChild(countLabel);
 
+    const caveats = [];
+    if (result.ambiguous) caveats.push('several professors share this name — verify on RMP');
+    if (result.campusGuessed) {
+      caveats.push('this page did not say which college, so the campus was guessed — ' +
+        'set yours in the extension popup');
+    }
+
     const summary = professor.firstName + ' ' + professor.lastName + ': ' +
       formatRating(professor.avgRating) + ' out of 5 from ' + professor.numRatings +
       ' rating' + (professor.numRatings === 1 ? '' : 's') +
-      (result.ambiguous ? ' (several professors share this name — verify on RMP)' : '');
+      (caveats.length ? ' (' + caveats.join('; ') + ')' : '');
 
     badge.title = summary;
     badge.setAttribute('aria-label', summary);
 
-    if (result.ambiguous) badge.setAttribute('data-rmpx-ambiguous', '1');
+    // One marker for "do not take this at face value", whatever the reason.
+    if (result.ambiguous || result.campusGuessed) {
+      badge.setAttribute('data-rmpx-ambiguous', '1');
+    }
   }
 
   /** Point the anchor at the profile once we know where it lives. */

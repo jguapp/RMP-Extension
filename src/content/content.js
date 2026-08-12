@@ -25,6 +25,8 @@
 
   let settings = Object.assign({}, RMPX.DEFAULT_SETTINGS);
   let schoolKey = null;
+  /** False when schoolKey is the fallback rather than something the page said. */
+  let schoolDetected = true;
   let observer = null;
   let rescanTimer = null;
   let scanning = false;
@@ -84,16 +86,28 @@
     return null;
   }
 
+  /**
+   * Work out which campus this page belongs to.
+   *
+   * Returns { key, detected }. `detected` is false when nothing on the page
+   * named a college and the key is just the default -- that distinction
+   * matters, because an undetected campus still produces a real professor with
+   * a real rating, just possibly from the wrong college. Silently presenting
+   * that as fact is the worst error this extension can make, so callers mark
+   * those results instead.
+   *
+   * A campus the user pinned themselves counts as detected: they said so.
+   */
   function detectSchoolKey() {
     if (settings.schoolMode === 'manual' && settings.manualSchoolKey) {
-      return settings.manualSchoolKey;
+      return { key: settings.manualSchoolKey, detected: true };
     }
 
     const fromControls = institutionFromControls();
-    if (fromControls) return fromControls;
+    if (fromControls) return { key: fromControls, detected: true };
 
     const titleHit = schools.detectSchoolFromText(document.title || '');
-    if (titleHit) return titleHit.key;
+    if (titleHit) return { key: titleHit.key, detected: true };
 
     // Headers and nav are where campus branding usually lives.
     let chromeText = '';
@@ -106,17 +120,20 @@
       chromeText = '';
     }
     const chromeHit = schools.detectSchoolFromText(chromeText);
-    if (chromeHit) return chromeHit.key;
+    if (chromeHit) return { key: chromeHit.key, detected: true };
 
     const urlHit = schools.detectSchoolFromText(
       location.hostname.replace(/[.-]/g, ' ') + ' ' + location.pathname.replace(/[/_-]/g, ' ')
     );
-    if (urlHit) return urlHit.key;
+    if (urlHit) return { key: urlHit.key, detected: true };
 
     const bodyHit = schools.detectSchoolFromText((document.body.textContent || '').slice(0, 6000));
-    if (bodyHit) return bodyHit.key;
+    if (bodyHit) return { key: bodyHit.key, detected: true };
 
-    return settings.manualSchoolKey || null;
+    // Nothing on the page said. Fall back so lookups still have a school to
+    // narrow on -- searching every campus at once matches strangers -- but say
+    // out loud that this was a guess.
+    return { key: settings.manualSchoolKey || null, detected: false };
   }
 
   /* ----------------------------------------------------------------------- *
@@ -138,6 +155,11 @@
       contextByAnchor.set(entry.anchor, { result: failure, settings: settings });
       return;
     }
+
+    // Nothing on this page named a college, so the match was narrowed on a
+    // guessed campus. It is a real professor either way -- possibly the wrong
+    // one -- so say so rather than presenting it as settled.
+    if (!schoolDetected && response.status === 'match') response.campusGuessed = true;
 
     badge.paintBadge(entry.badge, response, settings);
     badge.updateAnchor(entry.anchor, response);
@@ -266,7 +288,9 @@
       return;
     }
 
-    schoolKey = detectSchoolKey();
+    const campus = detectSchoolKey();
+    schoolKey = campus.key;
+    schoolDetected = campus.detected;
 
     // Changing campus invalidates every badge on the page.
     if (wasEnabled && previousSchool && previousSchool !== schoolKey) {

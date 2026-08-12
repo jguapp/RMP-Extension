@@ -544,6 +544,56 @@ async function main() {
     assert.strictEqual(restored.leftovers, 0);
   });
 
+  /* ---- a page that never names a college ------------------------------- */
+
+  const blind = await browser.newPage({ viewport: { width: 1100, height: 700 } });
+  await blind.addInitScript(buildStub(FAKE_DB, FAKE_DETAIL));
+  await blind.goto('file://' + path.join(__dirname, 'fixtures', 'no-campus.html'));
+  await blind.addStyleTag({ path: path.join(ROOT, 'src/content/styles.css') });
+  for (const file of CONTENT_SCRIPTS) {
+    await blind.addScriptTag({ path: path.join(ROOT, file) });
+  }
+  await blind.waitForSelector('.rmpx-badge[data-rmpx-state="match"]', { timeout: 5000 });
+
+  const guessed = await blind.evaluate(function () {
+    const lookup = window.__rmpxCalls.find(function (c) { return c.type === 'rmpx:lookup'; });
+    const badge = document.querySelector('.rmpx-badge[data-rmpx-state="match"]');
+    return {
+      schoolKey: lookup && lookup.payload.schoolKey,
+      marked: badge.hasAttribute('data-rmpx-ambiguous'),
+      title: badge.getAttribute('title'),
+    };
+  });
+
+  await blind.hover('a.rmpx-name[data-rmpx-person="john|smith"]');
+  await blind.waitForSelector('.rmpx-card__histogram', { timeout: 4000 });
+  const guessedCard = await blind.evaluate(function () {
+    return Array.from(document.querySelectorAll('.rmpx-card__warning'))
+      .map(function (w) { return w.textContent; });
+  });
+
+  check('still narrows on a campus when the page names none', function () {
+    // Searching every campus at once matches strangers, so the fallback stays.
+    assert.strictEqual(guessed.schoolKey, 'baruch');
+  });
+
+  check('marks a rating whose campus was guessed, not detected', function () {
+    // Otherwise a real professor from the wrong college reads as settled fact.
+    assert.ok(guessed.marked, 'badge should carry the uncertainty marker');
+    assert.match(guessed.title, /campus was guessed/);
+  });
+
+  check('the hover card names the assumed college and the fix', function () {
+    assert.strictEqual(guessedCard.length, 1);
+    assert.match(guessedCard[0], /did not say which college/);
+    assert.match(guessedCard[0], /Baruch College/);
+    assert.match(guessedCard[0], /extension popup/);
+  });
+
+  if (WANT_SHOTS) {
+    await blind.screenshot({ path: path.join(SHOTS_DIR, 'campus-guessed.png') });
+  }
+
   await browser.close();
 
   /* --------------------------------------------------------------------- */
