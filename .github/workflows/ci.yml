@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Read-only: nothing here needs to write to the repo.
+permissions:
+  contents: read
+
+# A newer push makes an in-flight run pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: unit tests (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['18', '20', '22']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # Deliberately no install step. The unit suite uses node:test and
+      # requires nothing outside this repo, which is a property worth keeping --
+      # if it ever stops being true, this job fails loudly rather than quietly
+      # growing a dependency.
+      - name: Run unit tests
+        run: npm test
+
+  bundles:
+    name: build and validate bundles
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build all three browser bundles
+        run: npm run build
+
+      - name: Validate the Firefox bundle with Mozilla's linter
+        run: npx --yes web-ext@8 lint --source-dir dist/firefox
+
+      - name: Package the Chrome bundle
+        # manifest.json must sit at the top level of the archive.
+        run: cd dist/chrome && zip -qr ../rmp-cunyfirst-chrome.zip .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chrome-extension
+          path: dist/rmp-cunyfirst-chrome.zip
+          retention-days: 30
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firefox-extension
+          path: dist/firefox
+          retention-days: 30
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: safari-extension
+          path: dist/safari
+          retention-days: 30
+
+  dom:
+    name: DOM tests (headless Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # No package-lock.json is committed, so this is `install`, not `ci`.
+      - name: Install dev dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run DOM tests
+        run: npm run test:dom
