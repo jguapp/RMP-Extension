@@ -1,16 +1,22 @@
 #!/usr/bin/env node
 /**
- * Renders the Chrome Web Store screenshots.
+ * Produces the Chrome Web Store screenshots, which must be exactly 1280x800.
  *
- *   npm run screenshots      # writes docs/store/*.png
+ *   npm run screenshots            # render from test fixtures
+ *   npm run screenshots -- --raw   # normalise real captures instead
  *
- * The store wants images at exactly 1280x800, so these are produced rather
- * than cropped by hand -- a listing has to be re-shot every time the UI moves,
- * and doing that manually is how listings end up showing a version of the
- * extension that no longer exists.
+ * Two sources, because they trade off against each other:
  *
- * Everything shown comes from test/fixtures, so no real student's schedule,
- * name or ratings ever ends up in a public store listing.
+ *   fixtures   Repeatable and safe. Nothing real is shown, so no professor's
+ *              name and rating ends up in a public listing, and the shots can
+ *              be regenerated whenever the UI moves. But it is a mock-up, and
+ *              a store listing full of "John Smith" looks like one.
+ *
+ *   --raw      Real Schedule Builder. Far more convincing, but it cannot be
+ *              automated: Schedule Builder is behind a CUNY login, so the
+ *              capture has to be taken by hand. Drop the images in
+ *              docs/store/raw/ and this reframes them to 1280x800 so the
+ *              store accepts them.
  *
  * Requires playwright (a dev dependency), same as the DOM tests.
  */
@@ -215,9 +221,89 @@ async function shotPopup(browser) {
   await page.close();
 }
 
+/* -------------------------------------------------------------------------- *
+ * Normalising real captures
+ * -------------------------------------------------------------------------- */
+
+const RAW = path.join(OUT, 'raw');
+
+/** Width and height straight out of a PNG's IHDR chunk. */
+function pngSize(file) {
+  const head = Buffer.alloc(24);
+  const fd = fs.openSync(file, 'r');
+  fs.readSync(fd, head, 0, 24, 0);
+  fs.closeSync(fd);
+  if (head.toString('ascii', 1, 4) !== 'PNG') return null;
+  return { width: head.readUInt32BE(16), height: head.readUInt32BE(20) };
+}
+
+/**
+ * Reframe a capture to exactly 1280x800.
+ *
+ * Cover rather than letterbox: bars down the side of a store screenshot look
+ * like a mistake. Anchored to the top, because a browser capture keeps its
+ * useful content there and any crop should come off the bottom.
+ */
+async function normalise(browser, file) {
+  const source = path.join(RAW, file);
+  const data = fs.readFileSync(source).toString('base64');
+  const ext = path.extname(file).slice(1).toLowerCase();
+  const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 'image/' + ext;
+
+  const size = ext === 'png' ? pngSize(source) : null;
+  let note = '';
+  if (size) {
+    note = size.width + 'x' + size.height;
+    if (size.width < WIDTH || size.height < HEIGHT) {
+      note += '  ** smaller than 1280x800, will look soft — recapture larger';
+    }
+  }
+
+  const page = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT } });
+  await page.setContent(
+    '<style>html,body{margin:0;height:100%;background:#fff}' +
+    'img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block}</style>' +
+    '<img src="data:' + mime + ';base64,' + data + '">'
+  );
+  await page.waitForTimeout(120);
+
+  const out = file.replace(/\.[^.]+$/, '') + '.png';
+  await page.screenshot({ path: path.join(OUT, out) });
+  await page.close();
+
+  console.log('  ' + file.padEnd(28) + '-> ' + out + (note ? '   ' + note : ''));
+}
+
+async function fromRaw(browser) {
+  if (!fs.existsSync(RAW)) {
+    console.error('No docs/store/raw/ directory.\n');
+    console.error('Schedule Builder needs a CUNY login, so these have to be captured');
+    console.error('by hand. Put the PNGs in docs/store/raw/ and run this again.');
+    process.exit(1);
+  }
+
+  const files = fs.readdirSync(RAW).filter(function (f) {
+    return /\.(png|jpe?g)$/i.test(f);
+  }).sort();
+
+  if (!files.length) {
+    console.error('docs/store/raw/ has no .png or .jpg files in it.');
+    process.exit(1);
+  }
+
+  for (const file of files) await normalise(browser, file);
+}
+
 async function main() {
   fs.mkdirSync(OUT, { recursive: true });
   const browser = await chromium.launch();
+
+  if (process.argv.includes('--raw')) {
+    await fromRaw(browser);
+    await browser.close();
+    console.log('\n' + WIDTH + 'x' + HEIGHT + ', written to ' + path.relative(ROOT, OUT));
+    return;
+  }
 
   await shotHoverCard(browser);
   await shotBadges(browser);

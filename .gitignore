@@ -12,3 +12,7 @@ dist/
 .DS_Store
 .vscode/
 .idea/
+
+# Raw store captures are personal (real schedules); keep the instructions only
+docs/store/raw/*
+!docs/store/raw/README.md
