@@ -43,8 +43,10 @@ function base() {
     manifest_version: 3,
     name: 'RMP for CUNYfirst Schedule Builder',
     version: RMPX.VERSION,
-    description: 'Shows Rate My Professors ratings, profile links and a hover ' +
-      'preview of the score breakdown directly inside CUNYfirst Schedule Builder.',
+    // The Chrome Web Store rejects a description over 132 characters, and the
+    // failure happens at upload rather than review. A test enforces the limit.
+    description: 'Rate My Professors ratings on every instructor name in CUNYfirst ' +
+      'Schedule Builder, with tags and a full score breakdown on hover.',
 
     permissions: ['storage', 'scripting', 'activeTab'],
 

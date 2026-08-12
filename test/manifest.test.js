@@ -40,6 +40,16 @@ TARGETS.forEach(function (target) {
     assert.strictEqual(manifest.version, RMPX.VERSION);
   });
 
+  test(label + 'fits the extension store field limits', function () {
+    // The Chrome Web Store rejects these at *upload*, before review, so a
+    // long description costs a round trip rather than producing a warning.
+    assert.ok(manifest.description.length <= 132,
+      'description is ' + manifest.description.length + ' chars, limit is 132');
+    assert.ok(manifest.name.length <= 75,
+      'name is ' + manifest.name.length + ' chars, limit is 75');
+    assert.ok(manifest.icons['128'], 'a 128px icon is required for a listing');
+  });
+
   test(label + 'every declared icon exists', function () {
     Object.values(manifest.icons).forEach(function (file) {
       assert.ok(exists(file), 'missing icon: ' + file);
