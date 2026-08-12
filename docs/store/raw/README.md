@@ -45,3 +45,10 @@ a "Tough grader" tag reads differently in your promotional material than it
 does on that professor's own RMP page. Prefer a view where the visible
 professors are well rated, or blur the names — the extension is what you are
 selling, not anyone's score.
+
+## How the reframe crops
+
+Overflow is taken off the **right and bottom**, never the sides evenly. A
+centred crop slices the leftmost panel down the middle and leaves half-words
+along the edge, which reads as a broken image rather than a cropped one. So
+keep anything essential toward the top-left of the capture.

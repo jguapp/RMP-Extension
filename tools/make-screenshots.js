@@ -107,8 +107,14 @@ function pngSize(file) {
  * Reframe a capture to exactly 1280x800.
  *
  * Cover rather than letterbox: bars down the side of a store screenshot look
- * like a mistake. Anchored to the top, because a browser capture keeps its
- * useful content there and any crop should come off the bottom.
+ * like a mistake.
+ *
+ * Anchored top-left, not centred. A centred crop takes the overflow off both
+ * sides at once, which on a left-to-right UI slices the leftmost panel down
+ * the middle and leaves half-words along the edge -- it reads as a broken
+ * image rather than a cropped one. Anchoring left keeps the panel whole and
+ * spends the whole crop on the right edge, where a wide layout has its least
+ * important content.
  */
 async function normalise(browser, file) {
   const source = path.join(RAW, file);
@@ -129,7 +135,7 @@ async function normalise(browser, file) {
   const page = await browser.newPage({ viewport: { width: WIDTH, height: HEIGHT } });
   await page.setContent(
     '<style>html,body{margin:0;height:100%;background:#fff}' +
-    'img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block}</style>' +
+    'img{width:100%;height:100%;object-fit:cover;object-position:top left;display:block}</style>' +
     '<img src="data:' + mime + ';base64,' + data + '">'
   );
   await page.waitForTimeout(120);
