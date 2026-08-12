@@ -370,7 +370,6 @@
   }
 
   RMPX.scanner = {
-    MARKER_SELECTORS: MARKER_SELECTORS,
     scan: scan,
     report: report,
     subjectHintFor: subjectHintFor,

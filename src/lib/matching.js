@@ -184,7 +184,6 @@
   }
 
   RMPX.matching = {
-    MIN_ACCEPT_SCORE: MIN_ACCEPT_SCORE,
     CONFIDENCE: CONFIDENCE,
     scoreCandidate: scoreCandidate,
     pickBestMatch: pickBestMatch,

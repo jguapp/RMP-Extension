@@ -89,7 +89,6 @@
   }
 
   RMPX.subjects = {
-    SUBJECT_DEPARTMENTS: SUBJECT_DEPARTMENTS,
     subjectFromText: subjectFromText,
     departmentForSubject: departmentForSubject,
     departmentFromText: departmentFromText,

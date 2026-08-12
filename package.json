@@ -9,7 +9,6 @@
     "test:all": "npm test && npm run test:dom",
     "check:api": "node tools/check-api.js",
     "build": "node tools/build.js",
-    "icons": "node tools/make-icons.js",
     "screenshots": "node tools/make-screenshots.js"
   },
   "devDependencies": {

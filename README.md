@@ -50,13 +50,6 @@ uninstalling deletes all of it.
 
 Full details: [PRIVACY.md](PRIVACY.md).
 
-## Under the hood
-
-Curious how it works? [**docs/architecture.html**](docs/architecture.html) is a
-full walkthrough of the codebase — every file, why it exists, and the concepts
-behind it, from how a browser extension is actually structured to how fuzzy name
-matching avoids confidently showing you the wrong professor.
-
 ## A note on the ratings themselves
 
 Rate My Professors reviews are user-submitted opinions from a self-selected
